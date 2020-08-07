@@ -7,3 +7,6 @@ https://neuronaldynamics.epfl.ch/online/Ch16.S3.html
 
 Here is an example of the system we will be in matlab:
 https://www.mathworks.com/matlabcentral/fileexchange/50339-easily-simulate-a-customizable-network-of-spiking-leaky-integrate-and-fire-neurons
+
+Nice article from medium on spiking neural networks:
+https://medium.com/bitgrit-data-science-publication/spiking-neural-networks-a-more-brain-like-ai-6f7ad86b7e7e
