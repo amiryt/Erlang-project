@@ -11,7 +11,7 @@
       </ErlangDebugOptions>
     </option>
     <option name="erlFlags" value="" />
-    <option name="moduleAndFunction" value="final_project" />
+    <option name="moduleAndFunction" value="neuron_wxwidget start" />
     <option name="params" value="" />
     <option name="useTestCodePath" value="false" />
     <option name="workDirectory" value="C:\Users\Amir\IdeaProjects\Erlang-project" />
