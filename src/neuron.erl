@@ -12,15 +12,20 @@
 -behaviour(gen_statem).
 
 %% API
--export([start_link/0]).
+-export([start/0, start_link/0]).
 
-%% gen_statem callbacks
--export([start/0, init/1, format_status/2, state_name/3, handle_event/4, terminate/3,
+%% Callback functions
+-export([init/1, format_status/2, state_name/3, handle_event/4, terminate/3,
   code_change/4, callback_mode/0]).
+%% States functions
+
+
+%% Events functions
+%% -export([new_data/1, change_parameters/1, change_weights/1]).
 
 -define(SERVER, ?MODULE).
 
--record(neuron_state, {}).
+-record(neuron_state, {total_Time, dt, t_rest, vm, rm, cm, tau_m, tau_ref, vth, v_spike, i_app, weights, i_synapse}).
 
 %%%===================================================================
 %%% API
@@ -29,6 +34,7 @@
 %% @doc Creates a gen_statem process which calls Module:init/1 to
 %% initialize. To ensure a synchronized start-up procedure, this
 %% function does not return until Module:init/1 has returned.
+%% TODO: Support restore & regular init!!
 start_link() ->
   gen_statem:start_link({local, ?SERVER}, ?MODULE, [], []).
 
@@ -41,13 +47,14 @@ start_link() ->
 %% gen_statem:start_link/[3,4], this function is called by the new
 %% process to initialize.
 init([]) ->
+  process_flag(trap_exit, true),
   {ok, state_name, #neuron_state{}}.
 
 %% @private
 %% @doc This function is called by a gen_statem when it needs to find out
 %% the callback mode of the callback module.
 callback_mode() ->
-  handle_event_function.
+  state_functions.
 
 %% @private
 %% @doc Called (1) whenever sys:get_status/1,2 is called by gen_statem or
@@ -92,9 +99,13 @@ code_change(_OldVsn, StateName, State = #neuron_state{}, _Extra) ->
 %%%===================================================================
 
 start() ->
+%%  {ok, Pid} = neuron:start_link(),
+%%  sys:trace(Pid, true),
   Dt = 0.125,
   L = arange(0, 50 + Dt, Dt),
   hey.
+
+%% TODO: Create the lif function using the record !!
 
 %% @doc Receives: Start - The number we start
 %%                End - The number we end
