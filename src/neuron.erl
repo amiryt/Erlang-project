@@ -93,7 +93,8 @@ code_change(_OldVsn, StateName, State = #neuron_state{}, _Extra) ->
 
 start() ->
   Dt = 0.125,
-  arange(0, 50 + Dt, Dt).
+  L = arange(0, 50 + Dt, Dt),
+  hey.
 
 %% @doc Receives: Start - The number we start
 %%                End - The number we end
@@ -102,7 +103,7 @@ start() ->
 arange(Start, End, Dt) ->
   NumLoops = math:ceil((End - Start) / Dt),
   arangeLoop(Start, Dt, NumLoops).
-arangeLoop(_, _, 0) ->
+arangeLoop(_, _, 0.0) ->
   [];
 arangeLoop(Start, Dt, Rounds) ->
   [Start | arangeLoop(Start + Dt, Dt, Rounds - 1)].
