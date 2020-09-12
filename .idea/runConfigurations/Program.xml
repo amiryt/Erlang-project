@@ -1,9 +1,0 @@
-<component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Program" type="ErlangConsoleRunConfigurationType" factoryName="Erlang Console" show_console_on_std_err="false" show_console_on_std_out="false">
-    <module name="Erlang-project" />
-    <option name="allowRunningInParallel" value="false" />
-    <option name="consoleArgs" value="final_program" />
-    <option name="workingDirPath" value="$PROJECT_DIR$" />
-    <method v="2" />
-  </configuration>
-</component>
