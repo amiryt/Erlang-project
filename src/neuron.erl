@@ -62,10 +62,10 @@ init([regular, NeuronParametersMap]) ->
   T = maps:get(simulation_time, NeuronParametersMap),
   Time = arange(0, T + Dt, Dt),
   T_rest = maps:get(t_rest, NeuronParametersMap),
-  Vm = maps:get(vm, NeuronParametersMap),
+  Vm = list_same(0, length(Time)),
   Rm = maps:get(rm, NeuronParametersMap),
   Cm = maps:get(cm, NeuronParametersMap),
-  Tau_m = maps:get(tau_m, NeuronParametersMap),
+  Tau_m = Rm * Cm,
   Tau_ref = maps:get(tau_ref, NeuronParametersMap),
   Vth = maps:get(vth, NeuronParametersMap),
   V_spike = maps:get(v_spike, NeuronParametersMap),
@@ -101,12 +101,13 @@ state_name(_EventType, _EventContent, State = #neuron_state{}) ->
 %% TODO: Copy that 4 times: weights_change, new_data, change_parameters, _Others for the start
 
 %% Event of new current
-active(cast, {new_data, I_input}, State = #neuron_state{dt = Dt, simulation_time = T, time_list = Time, t_rest = T_rest, vm = Vm, rm = Rm, cm = Cm, tau_m = Tau_m, tau_ref = Tau_ref,
-  vth = Vth, v_spike = V_spike, i_app = I_app, weights = Weights}) ->
+active(cast, {new_data, I_input}, State = #neuron_state{}) ->
   io:format("Event of new data"),
-  I_synapse = mapMult(I_input, Weights), % The current depends on the current of all the other connected neurons and their weights
-%%  lif model here (with I synapse)
-  {next_state, active, State};
+  L1 = length(I_input),
+  L2 = length(State#neuron_state.weights),
+  I_synapse = mapMult(I_input, State#neuron_state.weights), % The current depends on the current of all the other connected neurons and their weights
+  Vm = lif(I_synapse, State#neuron_state.time_list, State, 0),
+  {next_state, active, #neuron_state{vm = Vm}};
 
 %% Event of changing parameters
 active(cast, {change_parameters, NewParametersMap}, State = #neuron_state{}) ->
@@ -115,7 +116,7 @@ active(cast, {change_parameters, NewParametersMap}, State = #neuron_state{}) ->
   T = maps:get(simulation_time, NewParametersMap),
   Time = arange(0, T + Dt, Dt),
   T_rest = maps:get(t_rest, NewParametersMap),
-  Vm = maps:get(vm, NewParametersMap),
+  Vm = State#neuron_state.vm,
   Rm = maps:get(rm, NewParametersMap),
   Cm = maps:get(cm, NewParametersMap),
   Tau_m = maps:get(tau_m, NewParametersMap),
@@ -123,14 +124,14 @@ active(cast, {change_parameters, NewParametersMap}, State = #neuron_state{}) ->
   Vth = maps:get(vth, NewParametersMap),
   V_spike = maps:get(v_spike, NewParametersMap),
   I_app = maps:get(i_app, NewParametersMap),
-  Weights = list_same(1, length(Time)),
-  I_synapse = list_same(0, length(Time)),
+  Weights = State#neuron_state.weights,
+  I_synapse = State#neuron_state.i_synapse,
   {next_state, active, State#neuron_state{dt = Dt, simulation_time = T, time_list = Time, t_rest = T_rest, vm = Vm, rm = Rm, cm = Cm, tau_m = Tau_m, tau_ref = Tau_ref,
     vth = Vth, v_spike = V_spike, i_app = I_app, weights = Weights, i_synapse = I_synapse}};
 
 %% Event of changing weights
 %%TODO: Change this when we have the correct equation
-active(cast, {change_weights}, State = #neuron_state{weights = Old_Weights}) ->
+active(cast, {change_weights, User_Weights}, State = #neuron_state{weights = Old_Weights}) ->
   io:format("Event of weights"),
 %%  back propagation function here
   New_Weights = Old_Weights,
@@ -151,9 +152,9 @@ handle_event(_EventType, _EventContent, _StateName, State = #neuron_state{}) ->
   {next_state, NextStateName, State}.
 
 %% Layer functions for neuron
-new_data(I) -> gen_statem:cast(?MODULE, {active, new_data, I}).
-change_parameters(Parameters) -> gen_statem:cast(?MODULE, {active, change_parameters, Parameters}).
-change_weights(Weights) -> gen_statem:cast(?MODULE, {active, change_weights, Weights}).
+new_data(I) -> gen_statem:cast(?MODULE, {new_data, I}).
+change_parameters(Parameters) -> gen_statem:cast(?MODULE, {change_parameters, Parameters}).
+change_weights(Weights) -> gen_statem:cast(?MODULE, {change_weights, Weights}).
 
 %% @private
 %% @doc This function is called by a gen_statem when it is about to
@@ -173,14 +174,51 @@ code_change(_OldVsn, StateName, State = #neuron_state{}, _Extra) ->
 %%%===================================================================
 
 start() ->
-%%  {ok, Pid} = neuron:start_link(),
-%%  sys:trace(Pid, true),
-  Dt = 0.125,
-  L = arange(0, 50 + Dt, Dt),
+%%  Dt = 0.125,
+%%  L = arange(0, 50 + Dt, Dt),
 %%  L1 = mapMult([1,2,3], [4,5,6]),
+  ParaMap =
+    maps:put(dt, 0.125,
+      maps:put(simulation_time, 50,
+        maps:put(t_rest, 0,
+          maps:put(rm, 1,
+            maps:put(cm, 10,
+              maps:put(tau_ref, 4,
+                maps:put(vth, 1,
+                  maps:put(v_spike, 0.5,
+                    maps:put(i_app, 0, maps:new()))))))))),
+  {ok, Pid} = neuron:start_link(regular, ParaMap),
+  sys:trace(Pid, true),
+  Length = math:ceil(maps:get(simulation_time, ParaMap) / maps:get(dt, ParaMap)),
+  I = list_same(1.5, Length + 1),
+  neuron:new_data(I),
   hey.
 
 %% TODO: Create the lif function using the record !!
+
+%% @doc  Receives: State - The values of the parameters in shape of record
+%%                I_synapse - The current after mult with the weights
+%%                Time_List  In order to move on all the values of time
+%%                Prev_Vm - The voltage before
+%%      Returns:  List of values of lif neuron
+lif([], [], _, _) ->
+  [];
+lif(I_synapse, Time_List, State, Prev_Vm) ->
+  I = hd(I_synapse),
+  Vm_now = if
+             hd(Time_List) > State#neuron_state.t_rest ->
+               Prev_Vm + ((State#neuron_state.rm * I - Prev_Vm) / State#neuron_state.tau_m + State#neuron_state.i_app) * State#neuron_state.dt;
+             true -> 0
+           end,
+  case Vm_now >= State#neuron_state.vth of
+    true ->
+      Vm_result = Vm_now + State#neuron_state.v_spike,
+      T_rest_new = hd(Time_List) + State#neuron_state.tau_ref;
+    false ->
+      Vm_result = Vm_now,
+      T_rest_new = State#neuron_state.t_rest
+  end,
+  [Vm_result | lif(tl(I_synapse), tl(Time_List), State#neuron_state{t_rest = T_rest_new}, Vm_result)].
 
 %% @doc  Receives: Start - The number we start
 %%                End - The number we end
@@ -197,7 +235,7 @@ arangeLoop(Start, Dt, Rounds) ->
 %% @doc  Receives: Num - The number we want
 %%                Len - Number of times that "Num" would appear
 %%      Returns:  A list with the same elements Len times
-list_same(_, 0) ->
+list_same(_, Finish) when (Finish == 0) ->
   [];
 list_same(Num, Len) ->
   [Num | list_same(Num, Len - 1)].
@@ -221,5 +259,5 @@ mapMultLoop(List1, Args2, List1length, Args2length) when List1length =:= Args2le
 %%      Returns:  A list of couples [[1, 4], [2, 5], [3, 6]]
 listsToCouple([], [], Acc) ->
   lists:reverse(Acc);
-listsToCouple([H1|T1], [H2|T2], Acc) ->
-  listsToCouple(T1, T2, [[H1|[H2]]|Acc]).
+listsToCouple([H1 | T1], [H2 | T2], Acc) ->
+  listsToCouple(T1, T2, [[H1 | [H2]] | Acc]).
