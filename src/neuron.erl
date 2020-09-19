@@ -12,7 +12,7 @@
 -behaviour(gen_statem).
 
 %% API
--export([start/0, start_link/2]).
+-export([start/0, start_link/3]).
 
 %% Callback functions
 -export([init/1, format_status/2, state_name/3, handle_event/4, terminate/3,
@@ -21,7 +21,7 @@
 -export([active/3]).
 
 %% Events functions
--export([new_data/1, change_parameters/1, change_weights/1]).
+-export([new_data/2, change_parameters/2, change_weights/2]).
 
 -define(SERVER, ?MODULE).
 
@@ -36,8 +36,8 @@
 %% function does not return until Module:init/1 has returned.
 %% TODO: Support restore & regular init!!
 %% OperationMode: restore or regular
-start_link(OperationMode, NeuronParameters) ->
-  gen_statem:start_link({local, ?SERVER}, ?MODULE, [OperationMode, NeuronParameters], []).
+start_link(Neuron_Number, OperationMode, NeuronParameters) ->
+  gen_statem:start_link({local, gen_Name("neuron", Neuron_Number)}, ?MODULE, [OperationMode, Neuron_Number, NeuronParameters], []).
 
 %%%===================================================================
 %%% gen_statem callbacks
@@ -48,6 +48,7 @@ start_link(OperationMode, NeuronParameters) ->
 %% gen_statem:start_link/[3,4], this function is called by the new
 %% process to initialize from ets of the layer
 %%init([restore, EtsId]) ->
+%%  io:format("Neuron(init): The neuron has restored his parameters from the backup in the layer!~n"),
 %%  process_flag(trap_exit, true),
 %%  {ok, state_name, #neuron_state{}};
 
@@ -55,9 +56,9 @@ start_link(OperationMode, NeuronParameters) ->
 %% @doc Whenever a gen_statem is started using gen_statem:start/[3,4] or
 %% gen_statem:start_link/[3,4], this function is called by the new
 %% process to initialize the new parameters
-init([regular, NeuronParametersMap]) ->
+init([regular, Neuron_Number, NeuronParametersMap]) ->
   process_flag(trap_exit, true),
-  io:format("New neuron has started! setting his parameters"),
+  io:format("Neuron(init): Neuron ~p has started! setting his parameters~n", [Neuron_Number]),
   Dt = maps:get(dt, NeuronParametersMap),
   T = maps:get(simulation_time, NeuronParametersMap),
   Time = arange(0, T + Dt, Dt),
@@ -102,7 +103,7 @@ state_name(_EventType, _EventContent, State = #neuron_state{}) ->
 
 %% Event of new current
 active(cast, {new_data, I_input}, State = #neuron_state{}) ->
-  io:format("Event of new data"),
+  io:format("Neuron(active): Event of new data~n"),
   L1 = length(I_input),
   L2 = length(State#neuron_state.weights),
   I_synapse = mapMult(I_input, State#neuron_state.weights), % The current depends on the current of all the other connected neurons and their weights
@@ -114,7 +115,7 @@ active(cast, {new_data, I_input}, State = #neuron_state{}) ->
 
 %% Event of changing parameters
 active(cast, {change_parameters, NewParametersMap}, State = #neuron_state{}) ->
-  io:format("Event of parameters"),
+  io:format("Neuron(active): Event of parameters~n"),
   Dt = maps:get(dt, NewParametersMap),
   T = maps:get(simulation_time, NewParametersMap),
   Time = arange(0, T + Dt, Dt),
@@ -135,7 +136,7 @@ active(cast, {change_parameters, NewParametersMap}, State = #neuron_state{}) ->
 %% Event of changing weights
 %%TODO: Change this when we have the correct equation
 active(cast, {change_weights, User_Weights}, State = #neuron_state{weights = Old_Weights}) ->
-  io:format("Event of weights"),
+  io:format("Neuron(active): Event of weights~n"),
 %%  back propagation function here
   New_Weights = Old_Weights,
   {next_state, active, State#neuron_state{weights = New_Weights}};
@@ -155,9 +156,9 @@ handle_event(_EventType, _EventContent, _StateName, State = #neuron_state{}) ->
   {next_state, NextStateName, State}.
 
 %% Layer functions for neuron
-new_data(I) -> gen_statem:cast(?MODULE, {new_data, I}).
-change_parameters(Parameters) -> gen_statem:cast(?MODULE, {change_parameters, Parameters}).
-change_weights(Weights) -> gen_statem:cast(?MODULE, {change_weights, Weights}).
+new_data(I, Neuron_Number) -> gen_statem:cast(gen_Name("neuron", Neuron_Number), {new_data, I}).
+change_parameters(Parameters, Neuron_Number) -> gen_statem:cast(gen_Name("neuron", Neuron_Number), {change_parameters, Parameters}).
+change_weights(Weights, Neuron_Number) -> gen_statem:cast(gen_Name("neuron", Neuron_Number), {change_weights, Weights}).
 
 %% @private
 %% @doc This function is called by a gen_statem when it is about to
@@ -190,12 +191,18 @@ start() ->
                 maps:put(vth, 1,
                   maps:put(v_spike, 0.5,
                     maps:put(i_app, 0, maps:new()))))))))),
-  {ok, Pid} = neuron:start_link(regular, ParaMap),
+  {ok, Pid} = neuron:start_link(1, regular, ParaMap),
   sys:trace(Pid, true),
   Length = math:ceil(maps:get(simulation_time, ParaMap) / maps:get(dt, ParaMap)),
   I = list_same(1.5, Length + 1),
-  neuron:new_data(I),
+  neuron:new_data(I, 1),
   hey.
+
+%% @doc  Receives: Str - String
+%%                          Neuron_Number - The number of the neuron
+%%            Returns:  An atom with the appropriate name
+gen_Name(Str, Neuron_Number) ->
+  list_to_atom(lists:flatten(io_lib:format("~s~B", [Str, Neuron_Number]))).
 
 %% TODO: Create the update weights function
 %% @doc  Receives: t - Time difference between presynaptic and postsynaptic spikes
