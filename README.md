@@ -1,4 +1,4 @@
-# Erlang-project: Amir Ytzhaik & Kyan Asleem
+# Erlang-project: Amir Ytzhaik & Kyan sleem
 In our project we will build a decision making based on spikes neural network (מערכת קבלת החלטות מבוססת רשתות נוירומורפיות):
 https://neuronaldynamics.epfl.ch/online/Ch16.S2.html 
 
