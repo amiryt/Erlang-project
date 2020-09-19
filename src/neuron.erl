@@ -106,7 +106,10 @@ active(cast, {new_data, I_input}, State = #neuron_state{}) ->
   L1 = length(I_input),
   L2 = length(State#neuron_state.weights),
   I_synapse = mapMult(I_input, State#neuron_state.weights), % The current depends on the current of all the other connected neurons and their weights
-  Vm = lif(I_synapse, State#neuron_state.time_list, State, 0),
+  Result = lif(I_synapse, State#neuron_state.time_list, State, 0, []),
+  Spike_train = returnFromElem(Result, spike_train),
+  Vm = lists:sublist(Result, 1, findElemLocation(Result, spike_train, 1) - 1),
+%%  TODO: From here we send the spike train for the other neurons
   {next_state, active, #neuron_state{vm = Vm}};
 
 %% Event of changing parameters
@@ -194,16 +197,26 @@ start() ->
   neuron:new_data(I),
   hey.
 
-%% TODO: Create the lif function using the record !!
+%% TODO: Create the update weights function
+%% @doc  Receives: t - Time difference between presynaptic and postsynaptic spikes
+%%                          A_plus, Tau_plus - Time difference is positive i.e negative reinforcement
+%%                          A_minus, Tau_minus - Time difference is negative i.e positive reinforcement
+%%      Returns:  STDP reinforcement learning curve
+%%rl(_t, A_plus, A_minus, Tau_plus, Tau_minus) ->
+%%  if
+%%    _t>0 -> -A_plus * math:exp(-_t/Tau_plus);
+%%    true -> A_minus* math:exp(_t/Tau_minus)
+%%  end.
+
 
 %% @doc  Receives: State - The values of the parameters in shape of record
 %%                I_synapse - The current after mult with the weights
 %%                Time_List  In order to move on all the values of time
 %%                Prev_Vm - The voltage before
 %%      Returns:  List of values of lif neuron
-lif([], [], _, _) ->
-  [];
-lif(I_synapse, Time_List, State, Prev_Vm) ->
+lif([], [], State, _, Spike_train) ->
+  [spike_train | lists:reverse(Spike_train)]; % Inorder to send also the spike train
+lif(I_synapse, Time_List, State, Prev_Vm, Spike_train) ->
   I = hd(I_synapse),
   Vm_now = if
              hd(Time_List) > State#neuron_state.t_rest ->
@@ -211,14 +224,16 @@ lif(I_synapse, Time_List, State, Prev_Vm) ->
              true -> 0
            end,
   case Vm_now >= State#neuron_state.vth of
-    true ->
+    true -> % Means we have a spike
+      Spike = 1,
       Vm_result = Vm_now + State#neuron_state.v_spike,
       T_rest_new = hd(Time_List) + State#neuron_state.tau_ref;
-    false ->
+    false -> % Means we don't have a spike
+      Spike = 0,
       Vm_result = Vm_now,
       T_rest_new = State#neuron_state.t_rest
   end,
-  [Vm_result | lif(tl(I_synapse), tl(Time_List), State#neuron_state{t_rest = T_rest_new}, Vm_result)].
+  [Vm_result | lif(tl(I_synapse), tl(Time_List), State#neuron_state{t_rest = T_rest_new}, Vm_result, [Spike | Spike_train])].
 
 %% @doc  Receives: Start - The number we start
 %%                End - The number we end
@@ -261,3 +276,24 @@ listsToCouple([], [], Acc) ->
   lists:reverse(Acc);
 listsToCouple([H1 | T1], [H2 | T2], Acc) ->
   listsToCouple(T1, T2, [[H1 | [H2]] | Acc]).
+
+%% @doc  Receives: List - A List of numbers
+%%                          Elem - The element we want to find in the list
+%%      Returns:  A list of what comes after Elem
+returnFromElem([],_) ->
+  notFound;
+returnFromElem([H | T], Elem) when Elem ==  H ->
+  T;
+returnFromElem([_|Rest], Elem) ->
+  returnFromElem(Rest, Elem).
+
+%% @doc  Receives: List - A List of numbers
+%%                          Elem - The element we want to find in the list
+%%                          K - Location in list
+%%      Returns:  His first location in the list
+findElemLocation([], _, _) ->
+  notFound;
+findElemLocation([H | _], Elem, K) when Elem == H  ->
+  K;
+findElemLocation([_|Rest], Elem, K) ->
+  findElemLocation(Rest, Elem, K+1).
