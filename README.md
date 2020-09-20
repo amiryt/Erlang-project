@@ -1,6 +1,6 @@
-# Erlang-project: Amir Ytzhaik & Kyan Asleem
-In our project we will build a decision making based on spikes neural network (מערכת קבלת החלטות מבוססת רשתות נוירומורפיות):
-https://neuronaldynamics.epfl.ch/online/Ch16.S2.html 
+# SNN based on lif model in erlang
+This is an erlang implementation of spiking neural network. Our main traget is to develop a network that can determine between X and O.
+In future work, we want to use Spike-Time Dependent Plasticity (STDP) algorithm in order to train our model to identify more items.
 
 The equations we will be based on this article:
 https://neuronaldynamics.epfl.ch/online/Ch16.S3.html
