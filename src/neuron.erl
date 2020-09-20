@@ -12,7 +12,7 @@
 -behaviour(gen_statem).
 
 %% API
--export([start/0, start_link/3]).
+-export([start/0, start_link/4]).
 
 %% Callback functions
 -export([init/1, format_status/2, state_name/3, handle_event/4, terminate/3,
@@ -25,7 +25,7 @@
 
 -define(SERVER, ?MODULE).
 
--record(neuron_state, {dt, simulation_time, time_list, t_rest, vm, rm, cm, tau_m, tau_ref, vth, v_spike, i_app, weights, i_synapse}).
+-record(neuron_state, {dt, simulation_time, time_list, t_rest, vm, rm, cm, tau_m, tau_ref, vth, v_spike, i_app, weights, i_synapse, neuron_pid}).
 
 %%%===================================================================
 %%% API
@@ -36,8 +36,8 @@
 %% function does not return until Module:init/1 has returned.
 %% TODO: Support restore & regular init!!
 %% OperationMode: restore or regular
-start_link(Neuron_Number, OperationMode, NeuronParameters) ->
-  gen_statem:start_link({local, gen_Name("neuron", Neuron_Number)}, ?MODULE, [OperationMode, Neuron_Number, NeuronParameters], []).
+start_link(Neuron_Number, OperationMode, NeuronPid, NeuronParameters) ->
+  gen_statem:start_link({local, gen_Name("neuron", Neuron_Number)}, ?MODULE, [OperationMode, Neuron_Number, NeuronPid, NeuronParameters], []).
 
 %%%===================================================================
 %%% gen_statem callbacks
@@ -56,7 +56,7 @@ start_link(Neuron_Number, OperationMode, NeuronParameters) ->
 %% @doc Whenever a gen_statem is started using gen_statem:start/[3,4] or
 %% gen_statem:start_link/[3,4], this function is called by the new
 %% process to initialize the new parameters
-init([regular, Neuron_Number, NeuronParametersMap]) ->
+init([regular, Neuron_Number, NeuronPid, NeuronParametersMap]) ->
   process_flag(trap_exit, true),
   io:format("Neuron(init): Neuron ~p has started! setting his parameters~n", [Neuron_Number]),
   Dt = maps:get(dt, NeuronParametersMap),
@@ -74,7 +74,7 @@ init([regular, Neuron_Number, NeuronParametersMap]) ->
   Weights = list_same(1, length(Time)),
   I_synapse = list_same(0, length(Time)),
   {ok, active, #neuron_state{dt = Dt, simulation_time = T, time_list = Time, t_rest = T_rest, vm = Vm, rm = Rm, cm = Cm, tau_m = Tau_m, tau_ref = Tau_ref,
-    vth = Vth, v_spike = V_spike, i_app = I_app, weights = Weights, i_synapse = I_synapse}}.
+    vth = Vth, v_spike = V_spike, i_app = I_app, weights = Weights, i_synapse = I_synapse, neuron_pid = NeuronPid}}.
 
 %% @private
 %% @doc This function is called by a gen_statem when it needs to find out
@@ -102,7 +102,7 @@ state_name(_EventType, _EventContent, State = #neuron_state{}) ->
 %% TODO: Copy that 4 times: weights_change, new_data, change_parameters, _Others for the start
 
 %% Event of new current
-active(cast, {new_data, I_input}, State = #neuron_state{}) ->
+active(cast, {new_data, I_input}, State = #neuron_state{neuron_pid = Neuron_Pid}) ->
   io:format("Neuron(active): Event of new data~n"),
   L1 = length(I_input),
   L2 = length(State#neuron_state.weights),
@@ -111,6 +111,7 @@ active(cast, {new_data, I_input}, State = #neuron_state{}) ->
   Spike_train = returnFromElem(Result, spike_train),
   Vm = lists:sublist(Result, 1, findElemLocation(Result, spike_train, 1) - 1),
 %%  TODO: From here we send the spike train for the other neurons
+  Neuron_Pid ! {spikes_from_neuron, Spike_train},
   {next_state, active, #neuron_state{vm = Vm}};
 
 %% Event of changing parameters
@@ -191,8 +192,8 @@ start() ->
                 maps:put(vth, 1,
                   maps:put(v_spike, 0.5,
                     maps:put(i_app, 0, maps:new()))))))))),
-  {ok, Pid} = neuron:start_link(1, regular, ParaMap),
-  sys:trace(Pid, true),
+%%  {ok, Pid} = neuron:start_link(1, regular, ParaMap),
+%%  sys:trace(Pid, true),
   Length = math:ceil(maps:get(simulation_time, ParaMap) / maps:get(dt, ParaMap)),
   I = list_same(1.5, Length + 1),
   neuron:new_data(I, 1),
@@ -221,7 +222,7 @@ gen_Name(Str, Neuron_Number) ->
 %%                Time_List  In order to move on all the values of time
 %%                Prev_Vm - The voltage before
 %%      Returns:  List of values of lif neuron
-lif([], [], State, _, Spike_train) ->
+lif([], [], _, _, Spike_train) ->
   [spike_train | lists:reverse(Spike_train)]; % Inorder to send also the spike train
 lif(I_synapse, Time_List, State, Prev_Vm, Spike_train) ->
   I = hd(I_synapse),

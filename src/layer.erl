@@ -10,11 +10,13 @@
 -author("amiryt").
 
 %% gen_server callbacks
--export([start/1]).
+-export([start/0, active_input_layer/1]).
+-record(neurons, {input_layer = 5, output_layer = 4}).
 
-
-start(N) ->
-
+start() ->
+  Neurons = #neurons{},
+  In = element(2, Neurons),
+  Out = element(3, Neurons),
   ParaMap =
     maps:put(dt, 0.125,
       maps:put(simulation_time, 50,
@@ -27,15 +29,22 @@ start(N) ->
                     maps:put(i_app, 0, maps:new()))))))))),
   ets:new(neuronEts, [ordered_set, named_table]), % For backup the settings of the neuron
   ets:new(weightsEts, [ordered_set, named_table]), % For easy access to the weights
-  initiate_layer(1, N, ParaMap, neuronEts), % Input layer - 5 neurons
-  initiate_layer(N + 1, N + 4, ParaMap, neuronEts), % Output layer - 4 neurons
+  initiate_layer(1, In, ParaMap, neuronEts), % Input layer - 5 neurons
+  initiate_layer(In + 1, In + Out, ParaMap, neuronEts), % Output layer - 4 neurons
+%% TODO: Return this
   Weights_List = ["16.0\t26\t36.65\t46\t56", "17\t27\t37\t47\t57.8", "18\t28\t38\t48\t58", "19\t29\t39\t49\t59"],
 %%  Weights_List = get_file_contents("weights.txt"),
-  backup_weights(N, N+1, Weights_List, weightsEts), % Save the weights in separate ets to have a backup of them in case we will need
-  initiate_weights(N, N+1, N+4, weightsEts, neuronEts), % Setting the weights by sending them to the neurons in the output layer
-  hey.
-%%  initiate_layer(N+1, N+4, ParaMap, layerEts).
+  backup_weights(In, In + 1, Weights_List, weightsEts), % Save the weights in separate ets to have a backup of them in case we will need
+  initiate_weights(In, In + 1, In + Out, weightsEts, neuronEts), % Setting the weights by sending them to the neurons in the output layer
+%%  TODO: Delete this
+  Length = math:ceil(maps:get(simulation_time, ParaMap) / maps:get(dt, ParaMap)),
+  I = list_same(1.5, Length + 1),
+  active_input_layer(I).
 
+%% @doc  Receives: I - The information from the picture
+%%                Sends the information arrived from the user's picture to the input layer
+active_input_layer(I) ->
+  hey.
 %% --------------------------------------------------------------------------------------
 %%                          LAYER CONFIGURATION FUNCTIONS
 %% --------------------------------------------------------------------------------------
@@ -49,7 +58,6 @@ initiate_layer(Finish, N, _, _) when Finish == N + 1 ->
   io:format("Finished building layer~n");
 initiate_layer(StartPoint, N, ParaMap, EtsName) ->
   io:format("Layer(initiate_layer): Neuron ~p created!~n", [StartPoint]),
-%%  TODO: Check this!!! & put correct weights in the beginning
   Neuron_info = create_neuron(regular, StartPoint, ParaMap),
   ets:insert(EtsName, Neuron_info),
   initiate_layer(StartPoint + 1, N, ParaMap, EtsName).
@@ -68,14 +76,19 @@ create_neuron(Start_Option, Number, ParaMap) ->
     Info -> Info
   end.
 
+%% @doc  Receives: Neuron_Number - The number of the neuron
+%%      This function is response on the connections between each neuron to the system (which are the layers)
 actions_neuron(Neuron_Number) ->
   receive
     {create, {Number, Sender_Pid}, Operation_Mode, ParaMap} when Number == Neuron_Number ->
-      {ok, NeuronStatem_Pid} = neuron:start_link(Number, Operation_Mode, ParaMap),
-%%      TODO: Understand if we want to save the pif from the statem (Neuron_Pid) or the process in the layer (self())
-      Sender_Pid ! {Neuron_Number, NeuronStatem_Pid,  self(), ParaMap}; % {1, Pid68 (statem - for tracking), Pid71 (neuron pid in the layer), parameters map}
+      {ok, NeuronStatem_Pid} = neuron:start_link(Number, Operation_Mode, self(), ParaMap),
+%%      TODO: Understand if we want to save the pid from the statem (Neuron_Pid) or the process in the layer (self())
+      Sender_Pid ! {Neuron_Number, NeuronStatem_Pid, self(), ParaMap}; % {1, Pid68 (statem - for tracking), Pid71 (neuron pid in the layer), parameters map}
     {weights, Sender_Pid, Weights} ->
-      neuron:change_weights(Weights, Neuron_Number)
+      neuron:change_weights(Weights, Neuron_Number);
+    {spikes_from_neuron, Spike_train} -> % The current received from the neuron
+      Spike_train,
+      hey
 %%  TODO: Add here state actions of: new_data, sending forward to the appropriate neurons
   end,
   actions_neuron(Neuron_Number). % Inorder to stay in the loop of receiving orders
@@ -89,7 +102,7 @@ actions_neuron(Neuron_Number) ->
 %%                Weights - A list of weights
 %%                WeightsEts - The ets name of weights
 %%                Backup all the weights of the neurons in an ets
-backup_weights(_, _, [],  _) ->
+backup_weights(_, _, [], _) ->
   io:format("Finished backup weights~n");
 backup_weights(Input_Len, Output_Neuron, Weights, WeightsEts) ->
   io:format("Layer(backup_weights): Setting output neuron weights backup~n"),
@@ -135,7 +148,7 @@ initiate_weights(Input_Len, Output_Neuron, Finish, WeightsEts, NeuronEts) ->
 %%                WeightsEts - The ets name of weights
 %%                NeuronsEts - The ets name of neurons
 %%                Set all the weights of the input neurons with that "Output_Neuron"
-set_weights([], Output_Neuron, _,  NeuronEts, Weights_List) ->
+set_weights([], Output_Neuron, _, NeuronEts, Weights_List) ->
   Weights = lists:reverse(Weights_List),
   Output_Neuron_Info = hd(ets:lookup(NeuronEts, Output_Neuron)),
   Pid_Output = element(3, Output_Neuron_Info),
@@ -148,9 +161,6 @@ set_weights(Neurons_Numbers, Output_Neuron, WeightsEts, NeuronEts, Weights_List)
   set_weights(tl(Neurons_Numbers), Output_Neuron, WeightsEts, NeuronEts, [Weight | Weights_List]).
 
 %% --------------------------------------------------------------------------------------
-
-
-
 
 
 %% --------------------------------------------------------------------------------------
@@ -175,6 +185,16 @@ get_all_lines(File, Partial) ->
     Line -> {Strip, _} = lists:split(length(Line), Line),
       get_all_lines(File, [Strip | Partial])
   end.
+
+
+%% @doc  Receives: Num - The number we want
+%%                Len - Number of times that "Num" would appear
+%%      Returns:  A list with the same elements Len times
+list_same(_, Finish) when (Finish == 0) ->
+  [];
+list_same(Num, Len) ->
+  [Num | list_same(Num, Len - 1)].
+
 
 %% @doc Receives: List - List of strings
 %%                         Len - List length
