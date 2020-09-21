@@ -10,7 +10,7 @@
 -author("amiryt").
 
 %% gen_server callbacks
--export([start/0, active_input_layer/1]).
+-export([start/0, active_input_layer/2]).
 -record(neurons, {input_layer = 5, output_layer = 4}).
 
 start() ->
@@ -29,6 +29,7 @@ start() ->
                     maps:put(i_app, 0, maps:new()))))))))),
   ets:new(neuronEts, [ordered_set, named_table]), % For backup the settings of the neuron
   ets:new(weightsEts, [ordered_set, named_table]), % For easy access to the weights
+%%  TODO: Have difference between input (16x16 LIF) to output (4 only sends out results)
   initiate_layer(1, In, ParaMap, neuronEts), % Input layer - 5 neurons
   initiate_layer(In + 1, In + Out, ParaMap, neuronEts), % Output layer - 4 neurons
 %% TODO: Return this
@@ -38,16 +39,34 @@ start() ->
   initiate_weights(In, In + 1, In + Out, weightsEts, neuronEts), % Setting the weights by sending them to the neurons in the output layer
 %%  TODO: Delete this
   Length = math:ceil(maps:get(simulation_time, ParaMap) / maps:get(dt, ParaMap)),
+%%  TODO: I suppose to be the same for all the neurons in the input layer
+%%  I = [1, 0, 0, 1, 0],
   I = list_same(1.5, Length + 1),
-  active_input_layer(I).
-
-%% @doc  Receives: I - The information from the picture
-%%                Sends the information arrived from the user's picture to the input layer
-active_input_layer(I) ->
+  active_input_layer(In, I),
   hey.
+
+%% @doc  Receives:   In - Number of neurons in the input layer
+%%                            I - The information from the picture
+%%                Sends the information arrived from the user's picture to the input layer
+%%                This information would come from the spike train that would be made with receptive_field
+active_input_layer(In, I) ->
+  Input_Numbers = lists:seq(1, In),
+  Input_Pids = [{X, element(3, hd(ets:lookup(neuronEts, X)))} || X <- Input_Numbers],
+  send_data(Input_Pids, I).
 %% --------------------------------------------------------------------------------------
 %%                          LAYER CONFIGURATION FUNCTIONS
 %% --------------------------------------------------------------------------------------
+
+%% @doc  Receives: Input_tuple - {Number, Pid of that input neuron}
+%%                            I - The information from the picture - ALL OF THEM ARE THE SAME
+%%                Sending for all of those neurons the current in order to activate the LIF
+send_data([], _) ->
+  io:format("All information passed the input layer~n");
+send_data(Input_tuple, I) ->
+  {Neuron_Number, Pid} = hd(Input_tuple),
+  Pid ! {new_data, {Neuron_Number, I}},
+  send_data(tl(Input_tuple), I).
+
 
 %% @doc  Receives: N - Number of neurons to be made
 %%                StartPoint - The number of neuron we start from
@@ -87,9 +106,12 @@ actions_neuron(Neuron_Number) ->
     {weights, Sender_Pid, Weights} ->
       neuron:change_weights(Weights, Neuron_Number);
     {spikes_from_neuron, Spike_train} -> % The current received from the neuron
+%%      io:format("New Spikes from neuron~n"),
       Spike_train,
-      hey
-%%  TODO: Add here state actions of: new_data, sending forward to the appropriate neurons
+      hey;
+    {new_data, {Neuron_Number, I}} ->
+%%      io:format("New Data~n"),
+      neuron:new_data(I, Neuron_Number)
   end,
   actions_neuron(Neuron_Number). % Inorder to stay in the loop of receiving orders
 
