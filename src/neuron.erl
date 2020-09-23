@@ -18,10 +18,10 @@
 -export([init/1, format_status/2, state_name/3, handle_event/4, terminate/3,
   code_change/4, callback_mode/0]).
 %% States functions
--export([active/3]).
+-export([active/3, stop/3]).
 
 %% Events functions
--export([new_data/2, change_parameters/2, change_weights/2]).
+-export([new_data/2, change_parameters/2, change_weights/2, stop_neuron/1]).
 
 -define(SERVER, ?MODULE).
 
@@ -99,19 +99,30 @@ state_name(_EventType, _EventContent, State = #neuron_state{}) ->
   NextStateName = next_state,
   {next_state, NextStateName, State}.
 
-%% TODO: Copy that 4 times: weights_change, new_data, change_parameters, _Others for the start
+
+%% Event of changing weights
+active(cast, {change_weights, User_Weights}, State = #neuron_state{}) ->
+  io:format("Neuron(active): Event of weights~n"),
+%%  back propagation function here
+  New_Weights = User_Weights,
+  io:format("Old: ~p~n", [State#neuron_state.weights]),
+  io:format("new: ~p~n", [New_Weights]),
+  {next_state, active, State#neuron_state{weights = New_Weights}};
+
 
 %% Event of new current
-active(cast, {new_data, I_input}, State = #neuron_state{neuron_pid = Neuron_Pid}) ->
+active(cast, {new_data, I_input}, State = #neuron_state{neuron_pid = Neuron_Pid, weights = Weights}) ->
   io:format("Neuron(active): Event of new data~n"),
-  L1 = length(I_input),
-  L2 = length(State#neuron_state.weights),
-  I_synapse = mapMult(I_input, State#neuron_state.weights), % The current depends on the current of all the other connected neurons and their weights
-  Result = lif(I_synapse, State#neuron_state.time_list, State, 0, []),
-  Spike_train = returnFromElem(Result, spike_train),
-  Vm = lists:sublist(Result, 1, findElemLocation(Result, spike_train, 1) - 1),
+  L1 = length(State#neuron_state.weights),
+  L2 = length(Weights),
+  io:format("~p~n", [L2]),
+  I_synapses = synapses(I_input, Weights), % The current depends on the current of all the other connected neurons and their weights
+  Results = [lif(X, State#neuron_state.time_list, State, 0, []) || X <- I_synapses],
+  Spike_trains = [returnFromElem(R, spike_train) || R <- Results],
+  Vm = [lists:sublist(R, 1, findElemLocation(R, spike_train, 1) - 1) || R <- Results],
+%%  io:format("~p~n", [Spike_trains]),
 %%  TODO: From here we send the spike train for the other neurons
-  Neuron_Pid ! {spikes_from_neuron, Spike_train},
+  Neuron_Pid ! {spikes_from_neuron, Spike_trains},
   {next_state, active, #neuron_state{vm = Vm}};
 
 %% Event of changing parameters
@@ -134,18 +145,21 @@ active(cast, {change_parameters, NewParametersMap}, State = #neuron_state{}) ->
   {next_state, active, State#neuron_state{dt = Dt, simulation_time = T, time_list = Time, t_rest = T_rest, vm = Vm, rm = Rm, cm = Cm, tau_m = Tau_m, tau_ref = Tau_ref,
     vth = Vth, v_spike = V_spike, i_app = I_app, weights = Weights, i_synapse = I_synapse}};
 
-%% Event of changing weights
-%%TODO: Change this when we have the correct equation
-active(cast, {change_weights, User_Weights}, State = #neuron_state{weights = Old_Weights}) ->
-  io:format("Neuron(active): Event of weights~n"),
-%%  back propagation function here
-  New_Weights = Old_Weights,
-  {next_state, active, State#neuron_state{weights = New_Weights}};
+
+%% We need to stop the neuron
+active(cast, {stop}, State = #neuron_state{})  ->
+  io:format("Neuron(active): We need to stop neuron~n"),
+  {next_state, stop, State};
+
+%% We need to stop the neuron
+active(cast, _Other, State = #neuron_state{})  ->
+  io:format("Neuron(active): Waiting~n"),
+  {next_state, active, State}.
 
 %% Any other event - just flush it from the mailbox
-active(cast, _Other, State = #neuron_state{}) ->
-  io:format("Waiting in active state"),
-  {next_state, active, State}.
+stop(cast, _Other, State = #neuron_state{})  ->
+  io:format("Waiting in stop state~n"),
+  {next_state, stop, State}.
 
 
 %% @private
@@ -160,6 +174,7 @@ handle_event(_EventType, _EventContent, _StateName, State = #neuron_state{}) ->
 new_data(I, Neuron_Number) -> gen_statem:cast(gen_Name("neuron", Neuron_Number), {new_data, I}).
 change_parameters(Parameters, Neuron_Number) -> gen_statem:cast(gen_Name("neuron", Neuron_Number), {change_parameters, Parameters}).
 change_weights(Weights, Neuron_Number) -> gen_statem:cast(gen_Name("neuron", Neuron_Number), {change_weights, Weights}).
+stop_neuron(Neuron_Number) -> gen_statem:cast(gen_Name("neuron", Neuron_Number), {stop}).
 
 %% @private
 %% @doc This function is called by a gen_statem when it is about to
@@ -192,11 +207,15 @@ start() ->
                 maps:put(vth, 1,
                   maps:put(v_spike, 0.5,
                     maps:put(i_app, 0, maps:new()))))))))),
-%%  {ok, Pid} = neuron:start_link(1, regular, ParaMap),
-%%  sys:trace(Pid, true),
+  {ok, Pid} = neuron:start_link(1, regular, nothing, ParaMap),
+  sys:trace(Pid, true),
   Length = math:ceil(maps:get(simulation_time, ParaMap) / maps:get(dt, ParaMap)),
   I = list_same(1.5, Length + 1),
+  Weights = [4, 5, 6],
+  neuron:change_weights(Weights, 1),
+  neuron:change_weights([1,2,3], 1),
   neuron:new_data(I, 1),
+  neuron:stop_neuron(1),
   hey.
 
 %% @doc  Receives: Str - String
@@ -222,7 +241,7 @@ gen_Name(Str, Neuron_Number) ->
 %%                Time_List  In order to move on all the values of time
 %%                Prev_Vm - The voltage before
 %%      Returns:  List of values of lif neuron
-lif([], [], _, _, Spike_train) ->
+lif(I_synapse, Time_List, _, _, Spike_train) when (I_synapse == [] orelse Time_List == []) ->
   [spike_train | lists:reverse(Spike_train)]; % Inorder to send also the spike train
 lif(I_synapse, Time_List, State, Prev_Vm, Spike_train) ->
   I = hd(I_synapse),
@@ -263,13 +282,24 @@ list_same(_, Finish) when (Finish == 0) ->
 list_same(Num, Len) ->
   [Num | list_same(Num, Len - 1)].
 
+
+%% @doc  Receives: I - Current for input neuron [1, 0, 0, 1, 0]
+%%                          Weights - From output neurons [4, 5, 6]
+%%      Returns:  A list of their mult [[4, 0, 0, 4, 0], [5, 0, 0, 5, 0], [6, 0, 0, 6, 0]]
+synapses(_, []) ->
+  [];
+synapses(I, Weights) ->
+  I_synapse = [hd(Weights) * X || X <- I],
+  [I_synapse | synapses(I, tl(Weights))].
+
+
 %% @doc  Receives: L1 - List 1 [1, 2, 3]
-%%                             Arg2 - List 2 [4, 5, 6]
-%%      Returns:  A list of their mult [4, 10, 18]
+%%                         Arg2 - List 2 [4, 5, 6] / number 4
+%%      Returns:  A list of their mult [4, 10, 18] / mult by number [4, 8, 12]
 mapMult(List1, []) ->
   lists:map(fun(X) -> (X) end, List1);
-mapMult(List1, Args2) when ((not is_list(Args2)) and is_number(Args2)) ->
-  lists:map(fun(X) -> (X - Args2) end, List1);
+mapMult(List1, Args2) when (is_list(Args2) and is_number(Args2)) ->
+  lists:map(fun(X) -> (X * Args2) end, List1);
 mapMult(List1, Args2) when (is_list(Args2) and is_list(Args2)) ->
   mapMultLoop(List1, Args2, length(List1), length(Args2)).
 mapMultLoop(_, _, List1length, Args2length) when List1length =/= Args2length ->

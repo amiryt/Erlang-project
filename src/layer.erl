@@ -35,15 +35,18 @@ start() ->
 %% TODO: Return this
   Weights_List = ["16.0\t26\t36.65\t46\t56", "17\t27\t37\t47\t57.8", "18\t28\t38\t48\t58", "19\t29\t39\t49\t59"],
 %%  Weights_List = get_file_contents("weights.txt"),
-  backup_weights(In, In + 1, Weights_List, weightsEts), % Save the weights in separate ets to have a backup of them in case we will need
-  initiate_weights(In, In + 1, In + Out, weightsEts, neuronEts), % Setting the weights by sending them to the neurons in the output layer
+  Weights = [list_to_numbers(length(string:tokens(X, "\t")), string:tokens(X, "\t")) || X <- Weights_List], % Splits from the tab
+  Weights_Trans = transpose(Weights), % Now we insert in the correct way the weights
+  backup_weights(1, In + 1, Weights_Trans, weightsEts), % Save the weights in separate ets to have a backup of them in case we will need
+  initiate_weights(1, In, In + 1, In + Out, weightsEts, neuronEts), % Setting the weights by sending them to the neurons in the output layer
 %%  TODO: Delete this
   Length = math:ceil(maps:get(simulation_time, ParaMap) / maps:get(dt, ParaMap)),
 %%  TODO: I suppose to be the same for all the neurons in the input layer
 %%  I = [1, 0, 0, 1, 0],
   I = list_same(1.5, Length + 1),
 %%  change_input_layer(In, ParaMap),
-  active_input_layer(In, I),
+  neuron:change_weights([1,2,3,4,5,6,7], 1),
+  active_input_layer(1, I),
   hey.
 
 %% @doc  Receives:   In - Number of neurons in the input layer
@@ -125,10 +128,13 @@ actions_neuron(Neuron_Number) ->
 %%      TODO: Understand if we want to save the pid from the statem (Neuron_Pid) or the process in the layer (self())
       Sender_Pid ! {Neuron_Number, NeuronStatem_Pid, self(), ParaMap}; % {1, Pid68 (statem - for tracking), Pid71 (neuron pid in the layer), parameters map}
     {weights, Sender_Pid, Weights} ->
+      io:format("Entered~p~n", [Neuron_Number]),
       neuron:change_weights(Weights, Neuron_Number);
-    {spikes_from_neuron, Spike_train} -> % The current received from the neuron
+    {spikes_from_neuron, Spike_trains} -> % The current received from the neuron
 %%      io:format("New Spikes from neuron~n"),
-      Spike_train,
+      Num_Spikes = [lists:sum(X) || X <-Spike_trains],
+      io:format("Neuron~p~n", [Num_Spikes]),
+%%      TODO: Send from input neuron to output neuron how many spikes there were
       hey;
     {new_data, {Neuron_Number, I}} ->
 %%      io:format("New Data~n"),
@@ -142,18 +148,18 @@ actions_neuron(Neuron_Number) ->
 %%                          WEIGHTS BACKUP FUNCTIONS
 %% --------------------------------------------------------------------------------------
 
-%% @doc  Receives: Input_Len - Number of neurons in the input layer
-%%                Output_Neuron - The number of the output neuron we work on
+%% @doc  Receives: Output_Len - Number of neurons in the output layer
+%%                Input_Neuron - The number of the input neuron we work on
 %%                Weights - A list of weights
 %%                WeightsEts - The ets name of weights
 %%                Backup all the weights of the neurons in an ets
 backup_weights(_, _, [], _) ->
   io:format("Finished backup weights~n");
-backup_weights(Input_Len, Output_Neuron, Weights, WeightsEts) ->
+backup_weights(Input_Neuron, Output_Len, Weights, WeightsEts) ->
   io:format("Layer(backup_weights): Setting output neuron weights backup~n"),
-  Weights_List = list_to_numbers(length(string:tokens(hd(Weights), "\t")), string:tokens(hd(Weights), "\t")), % Splits from the tab
-  save_weights(1, Input_Len, Output_Neuron, Weights_List, WeightsEts), % We save the weights in order to have a backup of them
-  backup_weights(Input_Len, Output_Neuron + 1, tl(Weights), WeightsEts).
+%%  Weights_List = list_to_numbers(length(string:tokens(hd(Weights), "\t")), string:tokens(hd(Weights), "\t")), % Splits from the tab
+  save_weights(Input_Neuron, Output_Len, hd(Weights), WeightsEts), % We save the weights in order to have a backup of them
+  backup_weights(Input_Neuron + 1, Output_Len, tl(Weights), WeightsEts).
 
 
 %% @doc  Receives: Start - The neuron we work on from input layer
@@ -162,12 +168,13 @@ backup_weights(Input_Len, Output_Neuron, Weights, WeightsEts) ->
 %%                Weights_List - A list of weights for the specific output neuron
 %%                WeightsEts - The ets name of weights
 %%                Save all the weights of the neurons
-save_weights(Start, Input_Len, Output_Neuron, [], _) when Start > Input_Len ->
-  io:format("Finished saving weights for neuron~p~n", [Output_Neuron]);
-save_weights(Start, Input_Len, Output_Neuron, Weights_List, WeightsEts) ->
+save_weights(Start, _, [], _)  ->
+  io:format("Finished saving weights for neuron~p~n", [Start]);
+save_weights(Start, Output_Neuron, Weights_List, WeightsEts) ->
   io:format("Saving weight ~p between neuron~p to neuron~p~n", [hd(Weights_List), Start, Output_Neuron]),
   ets:insert(WeightsEts, {{Start, Output_Neuron}, hd(Weights_List)}),
-  save_weights(Start + 1, Input_Len, Output_Neuron, tl(Weights_List), WeightsEts).
+%%  ets:insert(WeightsEts, {{Output_Neuron, Start}, hd(Weights_List)}), % Not sure about that
+  save_weights(Start, Output_Neuron + 1, tl(Weights_List), WeightsEts).
 
 %% --------------------------------------------------------------------------------------
 %%                          WEIGHTS CONFIGURATION FUNCTIONS
@@ -179,31 +186,31 @@ save_weights(Start, Input_Len, Output_Neuron, Weights_List, WeightsEts) ->
 %%                WeightsEts - The ets name of weights
 %%                NeuronEts - The ets name of neurons
 %%                Sets all the weights of the neurons
-initiate_weights(_, Output_Neuron, Finish, _, _) when Output_Neuron == Finish + 1 ->
+initiate_weights(Output_Neuron, _, Output_Neuron, _, _, _) ->
   io:format("Finished setting weights in network~n");
-initiate_weights(Input_Len, Output_Neuron, Finish, WeightsEts, NeuronEts) ->
-  io:format("Layer(initiate_weights): Setting output neuron~p weights~n", [Output_Neuron]),
-  Neurons_Numbers = lists:seq(1, Input_Len),
-  set_weights(Neurons_Numbers, Output_Neuron, WeightsEts, NeuronEts, []),
-  initiate_weights(Input_Len, Output_Neuron + 1, Finish, WeightsEts, NeuronEts).
+initiate_weights(Input_Neuron, Input_Len, Output_Neuron, Finish, WeightsEts, NeuronEts) ->
+  io:format("Layer(initiate_weights): Setting neuron~p weights~n", [Input_Neuron]),
+  Neurons_Numbers = lists:seq(Input_Len + 1, Finish),
+  set_weights(Neurons_Numbers, Input_Neuron, WeightsEts, NeuronEts, []),
+  initiate_weights(Input_Neuron + 1, Input_Len, Output_Neuron, Finish, WeightsEts, NeuronEts).
 
 
-%% @doc  Receives: Neurons_Numbers - The neurons of the input layer
-%%                Output_Neuron - The number of the output neuron we work on
+%% @doc  Receives: Neurons_Numbers - The neurons of the output layer
+%%                Input_Neuron - The number of the input neuron we work on
 %%                WeightsEts - The ets name of weights
 %%                NeuronsEts - The ets name of neurons
-%%                Set all the weights of the input neurons with that "Output_Neuron"
-set_weights([], Output_Neuron, _, NeuronEts, Weights_List) ->
+%%                Set all the weights of the output neurons with that "Input_Neuron"
+set_weights([], Input_Neuron, _, NeuronEts, Weights_List) ->
   Weights = lists:reverse(Weights_List),
-  Output_Neuron_Info = hd(ets:lookup(NeuronEts, Output_Neuron)),
-  Pid_Output = element(3, Output_Neuron_Info),
-  Pid_Output ! {weights, self(), Weights}, % The layer sends request to the neuron to change his weights
+  Input_Neuron_Info = hd(ets:lookup(NeuronEts, Input_Neuron)),
+  Pid_Input = element(3, Input_Neuron_Info),
+  Pid_Input ! {weights, self(), Weights}, % The layer sends request to the neuron to change his weights
   finished;
-set_weights(Neurons_Numbers, Output_Neuron, WeightsEts, NeuronEts, Weights_List) ->
-  io:format("Setting weight between neuron~p to neuron~p~n", [hd(Neurons_Numbers), Output_Neuron]),
-  Weight_info = hd(ets:lookup(WeightsEts, {hd(Neurons_Numbers), Output_Neuron})),
+set_weights(Neurons_Numbers, Input_Neuron, WeightsEts, NeuronEts, Weights_List) ->
+  io:format("Setting weight between neuron~p to neuron~p~n", [Input_Neuron, hd(Neurons_Numbers)]),
+  Weight_info = hd(ets:lookup(WeightsEts, {Input_Neuron, hd(Neurons_Numbers)})),
   Weight = element(2, Weight_info),
-  set_weights(tl(Neurons_Numbers), Output_Neuron, WeightsEts, NeuronEts, [Weight | Weights_List]).
+  set_weights(tl(Neurons_Numbers), Input_Neuron, WeightsEts, NeuronEts, [Weight | Weights_List]).
 
 %% --------------------------------------------------------------------------------------
 
@@ -249,6 +256,7 @@ list_to_numbers(0, []) ->
 list_to_numbers(Len, [H | T]) ->
   [list_to_number(H) | list_to_numbers(Len - 1, T)].
 
+
 %% @doc Receives: Str - A list that represent one string
 %%      Returns:  A float or integer
 list_to_number(Str) ->
@@ -264,3 +272,10 @@ list_to_number(Str) ->
         error:Error -> {error, Error}
       end
   end.
+
+%% @doc Receives: M - Matrix
+%%      Returns:  Transformed matrix
+transpose([[]|_]) ->
+  [];
+transpose(M) ->
+  [lists:map(fun hd/1, M) | transpose(lists:map(fun tl/1, M))].
