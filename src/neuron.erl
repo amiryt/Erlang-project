@@ -113,9 +113,9 @@ active(cast, {change_weights, User_Weights}, State = #neuron_state{}) ->
 %% Event of new current
 active(cast, {new_data, I_input}, State = #neuron_state{neuron_pid = Neuron_Pid, weights = Weights}) ->
   io:format("Neuron(active): Event of new data~n"),
-  L1 = length(State#neuron_state.weights),
-  L2 = length(Weights),
-  io:format("~p~n", [L2]),
+%%  L1 = length(State#neuron_state.weights),
+%%  L2 = length(Weights),
+%%  io:format("~p~n", [L2]),
   I_synapses = synapses(I_input, Weights), % The current depends on the current of all the other connected neurons and their weights
   Results = [lif(X, State#neuron_state.time_list, State, 0, []) || X <- I_synapses],
   Spike_trains = [returnFromElem(R, spike_train) || R <- Results],

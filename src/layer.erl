@@ -32,20 +32,25 @@ start() ->
 %%  TODO: Have difference between input (16x16 LIF) to output (4 only sends out results)
   initiate_layer(1, In, ParaMap, neuronEts), % Input layer - 5 neurons
   initiate_layer(In + 1, In + Out, ParaMap, neuronEts), % Output layer - 4 neurons
-%% TODO: Return this
-  Weights_List = ["16.0\t26\t36.65\t46\t56", "17\t27\t37\t47\t57.8", "18\t28\t38\t48\t58", "19\t29\t39\t49\t59"],
-%%  Weights_List = get_file_contents("weights.txt"),
-  Weights = [list_to_numbers(length(string:tokens(X, "\t")), string:tokens(X, "\t")) || X <- Weights_List], % Splits from the tab
+
+  Weights_List_pre = ["16.0\t26\t36.65\t46\t56", "17\t27\t37\t47\t57.8", "18\t28\t38\t48\t58", "19\t29\t39\t49\t59"],
+  %% TODO: Return this
+%%  Weights_List_pre = get_file_contents("weights.txt"),
+  No_tab = [string:tokens(X, "\t") || X <- Weights_List_pre],
+  %% TODO: Return this
+%%  Weights_List = [clean_list("\n", X) || X <- No_tab],
+  Weights_List = No_tab,
+
+  Weights = [list_to_numbers(length(X), X) || X <- Weights_List], % Splits from the tab
   Weights_Trans = transpose(Weights), % Now we insert in the correct way the weights
   backup_weights(1, In + 1, Weights_Trans, weightsEts), % Save the weights in separate ets to have a backup of them in case we will need
   initiate_weights(1, In, In + 1, In + Out, weightsEts, neuronEts), % Setting the weights by sending them to the neurons in the output layer
 %%  TODO: Delete this
   Length = math:ceil(maps:get(simulation_time, ParaMap) / maps:get(dt, ParaMap)),
 %%  TODO: I suppose to be the same for all the neurons in the input layer
-%%  I = [1, 0, 0, 1, 0],
   I = list_same(1.5, Length + 1),
 %%  change_input_layer(In, ParaMap),
-  neuron:change_weights([1,2,3,4,5,6,7], 1),
+  neuron:change_weights([1, 2, 3, 4, 5, 6, 7], 1),
   active_input_layer(1, I),
   hey.
 
@@ -132,7 +137,7 @@ actions_neuron(Neuron_Number) ->
       neuron:change_weights(Weights, Neuron_Number);
     {spikes_from_neuron, Spike_trains} -> % The current received from the neuron
 %%      io:format("New Spikes from neuron~n"),
-      Num_Spikes = [lists:sum(X) || X <-Spike_trains],
+      Num_Spikes = [lists:sum(X) || X <- Spike_trains],
       io:format("Neuron~p~n", [Num_Spikes]),
 %%      TODO: Send from input neuron to output neuron how many spikes there were
       hey;
@@ -168,7 +173,7 @@ backup_weights(Input_Neuron, Output_Len, Weights, WeightsEts) ->
 %%                Weights_List - A list of weights for the specific output neuron
 %%                WeightsEts - The ets name of weights
 %%                Save all the weights of the neurons
-save_weights(Start, _, [], _)  ->
+save_weights(Start, _, [], _) ->
   io:format("Finished saving weights for neuron~p~n", [Start]);
 save_weights(Start, Output_Neuron, Weights_List, WeightsEts) ->
   io:format("Saving weight ~p between neuron~p to neuron~p~n", [hd(Weights_List), Start, Output_Neuron]),
@@ -275,7 +280,29 @@ list_to_number(Str) ->
 
 %% @doc Receives: M - Matrix
 %%      Returns:  Transformed matrix
-transpose([[]|_]) ->
+transpose([[] | _]) ->
   [];
 transpose(M) ->
   [lists:map(fun hd/1, M) | transpose(lists:map(fun tl/1, M))].
+
+
+%% @doc Receives: TargetStr - The character we want to delete
+%%                List - The List of string we want to edit
+%%      Returns:  New List of edited strings
+clean_list(_, []) ->
+  [];
+clean_list(TargetStr, List) ->
+  [remove(TargetStr, hd(List)) | clean_list(TargetStr, tl(List))].
+
+%% @doc Receives: TargetStr - The character we want to delete
+%%                Str - The string we want to edit
+%%      Returns:  New string
+remove(TargetStr, Str) ->
+  remove(TargetStr, Str, _NewStr = []).
+
+remove(_TargetStr, _Str = [], NewStr) ->% When there are no more characters left in Str
+  lists:reverse(NewStr);
+remove([Char] = TargetStr, _Str = [Char | Chars], NewStr) ->% When Char matches the first character in Str
+  remove(TargetStr, Chars, NewStr);
+remove(TargetStr, _Str = [Char | Chars], NewStr) ->% When the other clauses don't match, i.e. when Char does NOT match the first character in Str
+  remove(TargetStr, Chars, [Char | NewStr]).
