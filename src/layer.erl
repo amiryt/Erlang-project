@@ -10,7 +10,7 @@
 -author("amiryt").
 
 %% gen_server callbacks
--export([start/0, active_input_layer/2]).
+-export([start/0, active_input_layer/2, change_input_layer/2]).
 -record(neurons, {input_layer = 5, output_layer = 4}).
 
 start() ->
@@ -42,6 +42,7 @@ start() ->
 %%  TODO: I suppose to be the same for all the neurons in the input layer
 %%  I = [1, 0, 0, 1, 0],
   I = list_same(1.5, Length + 1),
+%%  change_input_layer(In, ParaMap),
   active_input_layer(In, I),
   hey.
 
@@ -53,6 +54,15 @@ active_input_layer(In, I) ->
   Input_Numbers = lists:seq(1, In),
   Input_Pids = [{X, element(3, hd(ets:lookup(neuronEts, X)))} || X <- Input_Numbers],
   send_data(Input_Pids, I).
+
+
+%% @doc  Receives:   In - Number of neurons in the input layer
+%%                            ParaMap - The map of parameters (can be changed)
+%%                Changes the parameters of the neurons in the input layer
+change_input_layer(In, ParaMap) ->
+  Input_Numbers = lists:seq(1, In),
+  Input_Pids = [{X, element(3, hd(ets:lookup(neuronEts, X)))} || X <- Input_Numbers],
+  send_parameters(Input_Pids, ParaMap).
 %% --------------------------------------------------------------------------------------
 %%                          LAYER CONFIGURATION FUNCTIONS
 %% --------------------------------------------------------------------------------------
@@ -66,6 +76,17 @@ send_data(Input_tuple, I) ->
   {Neuron_Number, Pid} = hd(Input_tuple),
   Pid ! {new_data, {Neuron_Number, I}},
   send_data(tl(Input_tuple), I).
+
+
+%% @doc  Receives: Input_tuple - {Number, Pid of that input neuron}
+%%                          ParaMap - The new parameters map
+%%                Sending the new parameters for the neurons
+send_parameters([], _) ->
+  io:format("All parameters passed the input layer~n");
+send_parameters(Input_tuple, ParaMap) ->
+  {Neuron_Number, Pid} = hd(Input_tuple),
+  Pid ! {new_parameters, {Neuron_Number, ParaMap}},
+  send_parameters(tl(Input_tuple), ParaMap).
 
 
 %% @doc  Receives: N - Number of neurons to be made
@@ -111,7 +132,9 @@ actions_neuron(Neuron_Number) ->
       hey;
     {new_data, {Neuron_Number, I}} ->
 %%      io:format("New Data~n"),
-      neuron:new_data(I, Neuron_Number)
+      neuron:new_data(I, Neuron_Number);
+    {new_parameters, {Neuron_Number, ParaMap}} ->
+      neuron:change_parameters(ParaMap, Neuron_Number)
   end,
   actions_neuron(Neuron_Number). % Inorder to stay in the loop of receiving orders
 
