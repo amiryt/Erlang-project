@@ -21,11 +21,11 @@
 -export([active/3, stop/3]).
 
 %% Events functions
--export([new_data/2, change_parameters/2, change_weights/2, stop_neuron/1]).
+-export([new_data/2, change_parameters/2, change_weights/2, determine_output/3, stop_neuron/1]).
 
 -define(SERVER, ?MODULE).
 
--record(neuron_state, {dt, simulation_time, time_list, t_rest, vm, rm, cm, tau_m, tau_ref, vth, v_spike, i_app, weights, i_synapse, neuron_pid}).
+-record(neuron_state, {dt, simulation_time, time_list, t_rest, vm, rm, cm, tau_m, tau_ref, vth, v_spike, i_app, weights, i_synapse, neuron_pid, output_result}).
 
 %%%===================================================================
 %%% API
@@ -73,8 +73,9 @@ init([regular, Neuron_Number, NeuronPid, NeuronParametersMap]) ->
   I_app = maps:get(i_app, NeuronParametersMap),
   Weights = list_same(1, length(Time)),
   I_synapse = list_same(0, length(Time)),
+  Output_Result = {-1000, -1000}, % Random value in order to help us find the maximal result
   {ok, active, #neuron_state{dt = Dt, simulation_time = T, time_list = Time, t_rest = T_rest, vm = Vm, rm = Rm, cm = Cm, tau_m = Tau_m, tau_ref = Tau_ref,
-    vth = Vth, v_spike = V_spike, i_app = I_app, weights = Weights, i_synapse = I_synapse, neuron_pid = NeuronPid}}.
+    vth = Vth, v_spike = V_spike, i_app = I_app, weights = Weights, i_synapse = I_synapse, neuron_pid = NeuronPid, output_result = Output_Result}}.
 
 %% @private
 %% @doc This function is called by a gen_statem when it needs to find out
@@ -99,6 +100,22 @@ state_name(_EventType, _EventContent, State = #neuron_state{}) ->
   NextStateName = next_state,
   {next_state, NextStateName, State}.
 
+%% Event of sending output - must be synchronized (that's way we used call)
+active(cast, {output_path, Input_Len, Value}, State = #neuron_state{output_result = {Left, Max_Value}}) ->
+  io:format("Neuron(active): Event of output~n"),
+  if
+    Left == 0 -> New_Left = -1000,
+%%      TODO: From here send the value to the layer
+      State#neuron_state.neuron_pid ! {maximal_amount, Value},
+      New_Max = -1000; % Reset after we finish
+    Left == -1000 -> New_Left = Input_Len - 1,
+      New_Max = Value; % First time
+    Value > Max_Value -> New_Left = Left - 1,
+      New_Max = Value; % New maximal amount of spikes
+    true -> New_Left = Left - 1,
+      New_Max = Max_Value % The previous amount of spikes was bigger
+  end,
+  {next_state, active, State#neuron_state{output_result = {New_Left, New_Max}}};
 
 %% Event of changing weights
 active(cast, {change_weights, User_Weights}, State = #neuron_state{}) ->
@@ -113,17 +130,13 @@ active(cast, {change_weights, User_Weights}, State = #neuron_state{}) ->
 %% Event of new current
 active(cast, {new_data, I_input}, State = #neuron_state{neuron_pid = Neuron_Pid, weights = Weights}) ->
   io:format("Neuron(active): Event of new data~n"),
-%%  L1 = length(State#neuron_state.weights),
-%%  L2 = length(Weights),
-%%  io:format("~p~n", [L2]),
   I_synapses = synapses(I_input, Weights), % The current depends on the current of all the other connected neurons and their weights
   Results = [lif(X, State#neuron_state.time_list, State, 0, []) || X <- I_synapses],
   Spike_trains = [returnFromElem(R, spike_train) || R <- Results],
   Vm = [lists:sublist(R, 1, findElemLocation(R, spike_train, 1) - 1) || R <- Results],
-%%  io:format("~p~n", [Spike_trains]),
-%%  TODO: From here we send the spike train for the other neurons
+%%  TODO: Return this!!!!!!!!!!!!!!!
   Neuron_Pid ! {spikes_from_neuron, Spike_trains},
-  {next_state, active, #neuron_state{vm = Vm}};
+  {next_state, active, State#neuron_state{vm = Vm}};
 
 %% Event of changing parameters
 active(cast, {change_parameters, NewParametersMap}, State = #neuron_state{}) ->
@@ -147,17 +160,17 @@ active(cast, {change_parameters, NewParametersMap}, State = #neuron_state{}) ->
 
 
 %% We need to stop the neuron
-active(cast, {stop}, State = #neuron_state{})  ->
+active(cast, {stop}, State = #neuron_state{}) ->
   io:format("Neuron(active): We need to stop neuron~n"),
   {next_state, stop, State};
 
-%% We need to stop the neuron
-active(cast, _Other, State = #neuron_state{})  ->
+%% Any other event - just flush it from the mailbox
+active(cast, _Other, State = #neuron_state{}) ->
   io:format("Neuron(active): Waiting~n"),
   {next_state, active, State}.
 
 %% Any other event - just flush it from the mailbox
-stop(cast, _Other, State = #neuron_state{})  ->
+stop(cast, _Other, State = #neuron_state{}) ->
   io:format("Waiting in stop state~n"),
   {next_state, stop, State}.
 
@@ -174,6 +187,7 @@ handle_event(_EventType, _EventContent, _StateName, State = #neuron_state{}) ->
 new_data(I, Neuron_Number) -> gen_statem:cast(gen_Name("neuron", Neuron_Number), {new_data, I}).
 change_parameters(Parameters, Neuron_Number) -> gen_statem:cast(gen_Name("neuron", Neuron_Number), {change_parameters, Parameters}).
 change_weights(Weights, Neuron_Number) -> gen_statem:cast(gen_Name("neuron", Neuron_Number), {change_weights, Weights}).
+determine_output(Input_Len, Value, Neuron_Number) -> gen_statem:cast(gen_Name("neuron", Neuron_Number), {output_path, Input_Len, Value}).
 stop_neuron(Neuron_Number) -> gen_statem:cast(gen_Name("neuron", Neuron_Number), {stop}).
 
 %% @private
@@ -211,10 +225,11 @@ start() ->
   sys:trace(Pid, true),
   Length = math:ceil(maps:get(simulation_time, ParaMap) / maps:get(dt, ParaMap)),
   I = list_same(1.5, Length + 1),
-  Weights = [4, 5, 6],
-  neuron:change_weights(Weights, 1),
-  neuron:change_weights([1,2,3], 1),
+  neuron:change_weights([1, 20, 30], 1),
   neuron:new_data(I, 1),
+  neuron:determine_output(3, 10, 1),
+  neuron:determine_output(3, 20, 1),
+  neuron:determine_output(3, 30, 1),
   neuron:stop_neuron(1),
   hey.
 
@@ -318,11 +333,11 @@ listsToCouple([H1 | T1], [H2 | T2], Acc) ->
 %% @doc  Receives: List - A List of numbers
 %%                          Elem - The element we want to find in the list
 %%      Returns:  A list of what comes after Elem
-returnFromElem([],_) ->
+returnFromElem([], _) ->
   notFound;
-returnFromElem([H | T], Elem) when Elem ==  H ->
+returnFromElem([H | T], Elem) when Elem == H ->
   T;
-returnFromElem([_|Rest], Elem) ->
+returnFromElem([_ | Rest], Elem) ->
   returnFromElem(Rest, Elem).
 
 %% @doc  Receives: List - A List of numbers
@@ -331,7 +346,7 @@ returnFromElem([_|Rest], Elem) ->
 %%      Returns:  His first location in the list
 findElemLocation([], _, _) ->
   notFound;
-findElemLocation([H | _], Elem, K) when Elem == H  ->
+findElemLocation([H | _], Elem, K) when Elem == H ->
   K;
-findElemLocation([_|Rest], Elem, K) ->
-  findElemLocation(Rest, Elem, K+1).
+findElemLocation([_ | Rest], Elem, K) ->
+  findElemLocation(Rest, Elem, K + 1).

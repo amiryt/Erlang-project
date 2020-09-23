@@ -33,8 +33,8 @@ start() ->
   initiate_layer(1, In, ParaMap, neuronEts), % Input layer - 5 neurons
   initiate_layer(In + 1, In + Out, ParaMap, neuronEts), % Output layer - 4 neurons
 
-  Weights_List_pre = ["16.0\t26\t36.65\t46\t56", "17\t27\t37\t47\t57.8", "18\t28\t38\t48\t58", "19\t29\t39\t49\t59"],
   %% TODO: Return this
+  Weights_List_pre = ["16.0\t26\t36.65\t46\t56", "17\t27\t37\t47\t57.8", "18\t28\t38\t48\t58", "19\t29\t39\t49\t59"],
 %%  Weights_List_pre = get_file_contents("weights.txt"),
   No_tab = [string:tokens(X, "\t") || X <- Weights_List_pre],
   %% TODO: Return this
@@ -50,7 +50,6 @@ start() ->
 %%  TODO: I suppose to be the same for all the neurons in the input layer
   I = list_same(1.5, Length + 1),
 %%  change_input_layer(In, ParaMap),
-  neuron:change_weights([1, 2, 3, 4, 5, 6, 7], 1),
   active_input_layer(1, I),
   hey.
 
@@ -140,7 +139,14 @@ actions_neuron(Neuron_Number) ->
       Num_Spikes = [lists:sum(X) || X <- Spike_trains],
       io:format("Neuron~p~n", [Num_Spikes]),
 %%      TODO: Send from input neuron to output neuron how many spikes there were
+      In = element(2, #neurons{}),
+      Out = element(3, #neurons{}),
+      Output_Numbers = lists:seq(In + 1, Out + In),
+      Output_Info = [hd(ets:lookup(neuronEts, X)) || X <-Output_Numbers],
+      output_requests(Output_Info, In, Num_Spikes),
       hey;
+    {maximal_amount, Value} ->
+      io:format("Output neuron~p is ~p~n", [Neuron_Number, Value]);
     {new_data, {Neuron_Number, I}} ->
 %%      io:format("New Data~n"),
       neuron:new_data(I, Neuron_Number);
@@ -148,6 +154,21 @@ actions_neuron(Neuron_Number) ->
       neuron:change_parameters(ParaMap, Neuron_Number)
   end,
   actions_neuron(Neuron_Number). % Inorder to stay in the loop of receiving orders
+
+
+%% @doc  Receives: Output_Info - [{Number, Statem_Pid, Layer_Pid, ParaMap}, ..]
+%%                Input_Len - Number of input neurons
+%%                Num_Spikes - Number of spikes of a specific input neuron for all of his output neurons
+%%                Sends the output neurons the values
+output_requests([], _, []) ->
+  io:format("Finished sending output neurons~n");
+output_requests(Output_Info, Input_Len, Num_Spikes) ->
+  Neuron_Info = hd(Output_Info),
+  io:format("Layer(output_requests): Sending from to output neuron~p spikes: ~p~n", [element(1, Neuron_Info), hd(Num_Spikes)]),
+  neuron:determine_output(Input_Len, hd(Num_Spikes), element(1, Neuron_Info)),
+%%  Weights_List = list_to_numbers(length(string:tokens(hd(Weights), "\t")), string:tokens(hd(Weights), "\t")), % Splits from the tab
+  output_requests(tl(Output_Info), Input_Len, tl(Num_Spikes)).
+
 
 %% --------------------------------------------------------------------------------------
 %%                          WEIGHTS BACKUP FUNCTIONS
