@@ -53,7 +53,8 @@ start() ->
 %%  TODO: Delete this - and put in separate function
   Length = math:ceil(maps:get(simulation_time, ParaMap) / maps:get(dt, ParaMap)),
 %%%%  TODO: I suppose to be the same for all the neurons in the input layer
-  I = list_same(1.5, Length + 1),
+%%  I supposed to be [[1,2,3], [4,5,6], ....]
+  I = list_same(list_same(1.5, Length + 1), In),
 %%  change_input_layer(In, ParaMap),
   active_input_layer(In, I),
   bye.
@@ -116,7 +117,12 @@ send_data(Input_tuple, I) ->
 %%  Here we need to look at the neurons in the output layer
   Pid_Manager = spawn(fun() ->
     countNeuronsLatch(Out, Self) end), % This is pid responsible to make sure that the functions were finished
-  send_data(Input_tuple, I, Pid_Manager).
+%%  In case of falling of one of the neurons (len(I) != len(input neurons))
+  I_New = if
+            length(I) > length(Input_tuple) -> lists:sublist(I, 1, length(Input_tuple)); % Case when neuron is down
+            true -> I
+          end,
+  send_data(Input_tuple, I_New, Pid_Manager).
 send_data([], _, _) ->
   io:format("All information passed the input layer~n"),
   receive
@@ -124,8 +130,8 @@ send_data([], _, _) ->
   end;
 send_data(Input_tuple, I, Pid_Manager) ->
   {Neuron_Number, Pid} = hd(Input_tuple),
-  Pid ! {new_data, Pid_Manager, {Neuron_Number, I}},
-  send_data(tl(Input_tuple), I, Pid_Manager).
+  Pid ! {new_data, Pid_Manager, {Neuron_Number, hd(I)}},
+  send_data(tl(Input_tuple), tl(I), Pid_Manager).
 
 
 %% @doc  Receives: Input_tuple - {Number, Pid of that input neuron}
@@ -173,7 +179,7 @@ actions_neuron(Neuron_Number) ->
     {maximal_amount, Manager_Pid, Value} ->
 %%      TODO: From here send values outside
       io:format("Output neuron~p max is ~p~n", [Neuron_Number, Value]),
-      Manager_Pid ! {neuron_finished};
+      Manager_Pid ! {neuron_finished}; % In order to stay in the loop of receiving orders
     {spikes_from_neuron, Manager_Pid, Spike_trains} -> % The current received from the neuron
 %%      io:format("New Spikes from neuron~n"),
       Num_Spikes = [lists:sum(X) || X <- Spike_trains],
@@ -190,7 +196,7 @@ actions_neuron(Neuron_Number) ->
     {new_parameters, Manager_Pid, {Neuron_Number, ParaMap}} ->
       neuron:change_parameters(ParaMap, Manager_Pid, Neuron_Number)
   end,
-  actions_neuron(Neuron_Number). % Inorder to stay in the loop of receiving orders
+  actions_neuron(Neuron_Number). % In order to stay in the loop of receiving orders
 
 
 %% @doc  Receives: Output_Info - [{Number, Statem_Pid, Layer_Pid, ParaMap}, ..]

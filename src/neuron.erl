@@ -245,10 +245,10 @@ start() ->
   Length = math:ceil(maps:get(simulation_time, ParaMap) / maps:get(dt, ParaMap)),
   I = list_same(1.5, Length + 1),
 %%  neuron:change_weights([1, 20, 30], 1),
-  neuron:new_data(I, 1),
-  neuron:determine_output(3, 10, 1),
-  neuron:determine_output(3, 20, 1),
-  neuron:determine_output(3, 30, 1),
+%%  neuron:new_data(I, 1),
+%%  neuron:determine_output(3, 10, 1),
+%%  neuron:determine_output(3, 20, 1),
+%%  neuron:determine_output(3, 30, 1),
   neuron:stop_neuron(1),
   hey.
 
