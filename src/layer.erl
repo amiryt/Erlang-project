@@ -10,9 +10,10 @@
 -author("amiryt").
 
 %% gen_server callbacks
--export([start/0, active_input_layer/2, change_input_layer/2]).
+-export([start/0, active_input_layer/1, change_input_layer/1]).
 -record(neurons, {input_layer = 5, output_layer = 4}).
 
+%%TODO: Start the layer with ParaMap
 start() ->
   Neurons = #neurons{},
   In = element(2, Neurons),
@@ -33,7 +34,6 @@ start() ->
                     maps:put(i_app, 0, maps:new()))))))))),
   ets:new(neuronEts, [ordered_set, named_table]), % For backup the settings of the neuron
   ets:new(weightsEts, [ordered_set, named_table]), % For easy access to the weights
-%%  TODO: Have difference between input (16x16 LIF) to output (4 only sends out results)
   initiate_layer(1, In, ParaMap, neuronEts), % Input layer - 5 neurons
   initiate_layer(In + 1, In + Out, ParaMap, neuronEts), % Output layer - 4 neurons
   %% TODO: Return this
@@ -43,11 +43,12 @@ start() ->
   %% TODO: Return this
 %%  Weights_List = [clean_list("\n", X) || X <- No_tab],
   Weights_List = No_tab,
-
   Weights = [list_to_numbers(length(X), X) || X <- Weights_List], % Splits from the tab
   Weights_Trans = transpose(Weights), % Now we insert in the correct way the weights
   backup_weights(1, In + 1, Weights_Trans, weightsEts), % Save the weights in separate ets to have a backup of them in case we will need
-%%  Until here good - check the parallel part
+
+
+%%  Until here it's the start of the layer, after checking the rest would be deleted!
   %%  TODO: Delete this - and put in separate function
   initiate_weights(1, In, In + 1, In + Out, weightsEts, neuronEts), % Setting the weights by sending them to the neurons in the output layer
 %%  TODO: Delete this - and put in separate function
@@ -56,9 +57,31 @@ start() ->
 %%  I supposed to be [[1,2,3], [4,5,6], ....]
   I = list_same(list_same(1.5, Length + 1), In),
 %%  change_input_layer(In, ParaMap),
-  active_input_layer(In, I),
+  active_input_layer(I),
   bye.
 
+
+%% @doc  Receives:   I - The information from the picture
+%%                Sends the information arrived from the user's picture to the input layer
+%%                This information would come from the spike train that would be made with receptive_field
+active_input_layer(I) ->
+  In = element(2, #neurons{}),
+  Input_Numbers = lists:seq(1, In),
+  Input_Pids = [{X, element(3, hd(ets:lookup(neuronEts, X)))} || X <- Input_Numbers],
+  send_data(Input_Pids, I).
+
+
+%% @doc  Receives:   ParaMap - The map of parameters (can be changed)
+%%                Changes the parameters of the neurons in the input layer
+change_input_layer(ParaMap) ->
+  In = element(2, #neurons{}),
+  Input_Numbers = lists:seq(1, In),
+  Input_Pids = [{X, element(3, hd(ets:lookup(neuronEts, X)))} || X <- Input_Numbers],
+  send_parameters(Input_Pids, ParaMap).
+
+%% --------------------------------------------------------------------------------------
+%%                          LAYER CONFIGURATION FUNCTIONS
+%% --------------------------------------------------------------------------------------
 
 %% @doc  Receives: Sender_Pid - The pid of the main program
 %%                          Left - Number of neurons left to finish the function
@@ -85,27 +108,6 @@ initiate_layer(StartPoint, N, ParaMap, EtsName) ->
   ets:insert(EtsName, Neuron_info),
   initiate_layer(StartPoint + 1, N, ParaMap, EtsName).
 
-
-%% @doc  Receives:   In - Number of neurons in the input layer
-%%                            I - The information from the picture
-%%                Sends the information arrived from the user's picture to the input layer
-%%                This information would come from the spike train that would be made with receptive_field
-active_input_layer(In, I) ->
-  Input_Numbers = lists:seq(1, In),
-  Input_Pids = [{X, element(3, hd(ets:lookup(neuronEts, X)))} || X <- Input_Numbers],
-  send_data(Input_Pids, I).
-
-
-%% @doc  Receives:   In - Number of neurons in the input layer
-%%                            ParaMap - The map of parameters (can be changed)
-%%                Changes the parameters of the neurons in the input layer
-change_input_layer(In, ParaMap) ->
-  Input_Numbers = lists:seq(1, In),
-  Input_Pids = [{X, element(3, hd(ets:lookup(neuronEts, X)))} || X <- Input_Numbers],
-  send_parameters(Input_Pids, ParaMap).
-%% --------------------------------------------------------------------------------------
-%%                          LAYER CONFIGURATION FUNCTIONS
-%% --------------------------------------------------------------------------------------
 
 %% @doc  Receives: Input_tuple - {Number, Pid of that input neuron}
 %%                            I - The information from the picture - ALL OF THEM ARE THE SAME

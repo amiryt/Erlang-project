@@ -201,10 +201,12 @@ handle_event(_EventType, _EventContent, _StateName, State = #neuron_state{}) ->
 
 %% Layer functions for neuron
 %%call_length(Neuron_Number) -> gen_statem:call(gen_Name("neuron", Neuron_Number), {call, nothing}).
-new_data(I, Manager_Pid, Neuron_Number) -> gen_statem:cast(gen_Name("neuron", Neuron_Number), {new_data, Manager_Pid, I}).
+new_data(I, Manager_Pid, Neuron_Number) ->
+  gen_statem:cast(gen_Name("neuron", Neuron_Number), {new_data, Manager_Pid, I}).
 change_parameters(Parameters, Manager_Pid, Neuron_Number) ->
   gen_statem:cast(gen_Name("neuron", Neuron_Number), {change_parameters, Manager_Pid, Parameters}).
-change_weights(Weights, Manager_Pid, Neuron_Number) -> gen_statem:cast(gen_Name("neuron", Neuron_Number), {change_weights, Manager_Pid, Weights}).
+change_weights(Weights, Manager_Pid, Neuron_Number) ->
+  gen_statem:cast(gen_Name("neuron", Neuron_Number), {change_weights, Manager_Pid, Weights}).
 determine_output(Input_Len, Manager_Pid, Value, Neuron_Number) ->
   gen_statem:cast(gen_Name("neuron", Neuron_Number), {output_path, Manager_Pid, Input_Len, Value}).
 stop_neuron(Neuron_Number) -> gen_statem:cast(gen_Name("neuron", Neuron_Number), {stop}).
@@ -263,10 +265,14 @@ gen_Name(Str, Neuron_Number) ->
 %%                          A_plus, Tau_plus - Time difference is positive i.e negative reinforcement
 %%                          A_minus, Tau_minus - Time difference is negative i.e positive reinforcement
 %%      Returns:  STDP reinforcement learning curve
-%%rl(_t, A_plus, A_minus, Tau_plus, Tau_minus) ->
+%%rl(_t) ->
+%%  A_plus = 0.8,
+%%  A_minus = 0.3,
+%%  Tau_plus = 10,
+%%  Tau_minus = 10,
 %%  if
-%%    _t>0 -> -A_plus * math:exp(-_t/Tau_plus);
-%%    true -> A_minus* math:exp(_t/Tau_minus)
+%%    _t > 0 -> -A_plus * math:exp(-_t / Tau_plus);
+%%    true -> A_minus * math:exp(_t / Tau_minus)
 %%  end.
 
 
