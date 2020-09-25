@@ -21,7 +21,7 @@
 -export([active/3, stop/3]).
 
 %% Events functions
--export([new_data/2, change_parameters/2, change_weights/2, determine_output/3, stop_neuron/1]).
+-export([new_data/3, change_parameters/3, change_weights/3, determine_output/4, stop_neuron/1]).
 
 -define(SERVER, ?MODULE).
 
@@ -100,16 +100,23 @@ state_name(_EventType, _EventContent, State = #neuron_state{}) ->
   NextStateName = next_state,
   {next_state, NextStateName, State}.
 
-%% Event of sending output - must be synchronized (that's way we used call)
-active(cast, {output_path, Input_Len, Value}, State = #neuron_state{output_result = {Left, Max_Value}}) ->
+%% Event of sending output
+active(cast, {output_path, Manager_Pid, Input_Len, Value}, State = #neuron_state{output_result = {Left, Max_Value}}) ->
   io:format("Neuron(active): Event of output~n"),
   if
-    Left == 0 -> New_Left = -1000,
-%%      TODO: From here send the value to the layer
-      State#neuron_state.neuron_pid ! {maximal_amount, Value},
-      New_Max = -1000; % Reset after we finish
-    Left == -1000 -> New_Left = Input_Len - 1,
-      New_Max = Value; % First time
+    Left == -1000 ->
+      case Input_Len == 1 of % Only one neuron in the input layer, that means we need to send the value now
+        true -> Temp_Left = Left,
+          Temp_Max = Max_Value, % First time
+          State#neuron_state.neuron_pid ! {maximal_amount, Manager_Pid, Value};
+        false -> Temp_Left = Input_Len - 1,
+          Temp_Max = Value % First time
+      end,
+      New_Left = Temp_Left,
+      New_Max = Temp_Max;
+    Left == 1 -> New_Left = -1000,
+      New_Max = -1000, % Reset after we finish
+      State#neuron_state.neuron_pid ! {maximal_amount, Manager_Pid, Value};
     Value > Max_Value -> New_Left = Left - 1,
       New_Max = Value; % New maximal amount of spikes
     true -> New_Left = Left - 1,
@@ -118,28 +125,30 @@ active(cast, {output_path, Input_Len, Value}, State = #neuron_state{output_resul
   {next_state, active, State#neuron_state{output_result = {New_Left, New_Max}}};
 
 %% Event of changing weights
-active(cast, {change_weights, User_Weights}, State = #neuron_state{}) ->
+active(cast, {change_weights, Manager_Pid, User_Weights}, State = #neuron_state{}) ->
   io:format("Neuron(active): Event of weights~n"),
 %%  back propagation function here
   New_Weights = User_Weights,
   io:format("Old: ~p~n", [State#neuron_state.weights]),
-  io:format("new: ~p~n", [New_Weights]),
+  io:format("New: ~p~n", [New_Weights]),
+  Manager_Pid ! {neuron_finished}, % Inform the main process that this neuron finished the function
+%%  State#neuron_state.neuron_pid ! finished_setting_weights,
   {next_state, active, State#neuron_state{weights = New_Weights}};
 
 
 %% Event of new current
-active(cast, {new_data, I_input}, State = #neuron_state{neuron_pid = Neuron_Pid, weights = Weights}) ->
+active(cast, {new_data, Manager_Pid, I_input}, State = #neuron_state{neuron_pid = Neuron_Pid, weights = Weights}) ->
   io:format("Neuron(active): Event of new data~n"),
   I_synapses = synapses(I_input, Weights), % The current depends on the current of all the other connected neurons and their weights
   Results = [lif(X, State#neuron_state.time_list, State, 0, []) || X <- I_synapses],
   Spike_trains = [returnFromElem(R, spike_train) || R <- Results],
   Vm = [lists:sublist(R, 1, findElemLocation(R, spike_train, 1) - 1) || R <- Results],
-%%  TODO: Return this!!!!!!!!!!!!!!!
-  Neuron_Pid ! {spikes_from_neuron, Spike_trains},
+%%  Manager_Pid ! {neuron_finished}, % Inform the main process that this neuron finished the function
+  Neuron_Pid ! {spikes_from_neuron, Manager_Pid, Spike_trains},
   {next_state, active, State#neuron_state{vm = Vm}};
 
 %% Event of changing parameters
-active(cast, {change_parameters, NewParametersMap}, State = #neuron_state{}) ->
+active(cast, {change_parameters, Manager_Pid, NewParametersMap}, State = #neuron_state{}) ->
   io:format("Neuron(active): Event of parameters~n"),
   Dt = maps:get(dt, NewParametersMap),
   T = maps:get(simulation_time, NewParametersMap),
@@ -155,6 +164,8 @@ active(cast, {change_parameters, NewParametersMap}, State = #neuron_state{}) ->
   I_app = maps:get(i_app, NewParametersMap),
   Weights = State#neuron_state.weights,
   I_synapse = State#neuron_state.i_synapse,
+  Manager_Pid ! {neuron_finished}, % Inform the main process that this neuron finished the function
+%%  State#neuron_state.neuron_pid ! finished_setting_parameters,
   {next_state, active, State#neuron_state{dt = Dt, simulation_time = T, time_list = Time, t_rest = T_rest, vm = Vm, rm = Rm, cm = Cm, tau_m = Tau_m, tau_ref = Tau_ref,
     vth = Vth, v_spike = V_spike, i_app = I_app, weights = Weights, i_synapse = I_synapse}};
 
@@ -183,11 +194,19 @@ handle_event(_EventType, _EventContent, _StateName, State = #neuron_state{}) ->
   NextStateName = the_next_state_name,
   {next_state, NextStateName, State}.
 
+%%handle_common({call, From}, code_length, #{code := Code} = Data) ->
+%%  io:format("Hey~n"),
+%%  {keep_state, Data,
+%%    [{reply, From, length(Code)}]}.
+
 %% Layer functions for neuron
-new_data(I, Neuron_Number) -> gen_statem:cast(gen_Name("neuron", Neuron_Number), {new_data, I}).
-change_parameters(Parameters, Neuron_Number) -> gen_statem:cast(gen_Name("neuron", Neuron_Number), {change_parameters, Parameters}).
-change_weights(Weights, Neuron_Number) -> gen_statem:cast(gen_Name("neuron", Neuron_Number), {change_weights, Weights}).
-determine_output(Input_Len, Value, Neuron_Number) -> gen_statem:cast(gen_Name("neuron", Neuron_Number), {output_path, Input_Len, Value}).
+%%call_length(Neuron_Number) -> gen_statem:call(gen_Name("neuron", Neuron_Number), {call, nothing}).
+new_data(I, Manager_Pid, Neuron_Number) -> gen_statem:cast(gen_Name("neuron", Neuron_Number), {new_data, Manager_Pid, I}).
+change_parameters(Parameters, Manager_Pid, Neuron_Number) ->
+  gen_statem:cast(gen_Name("neuron", Neuron_Number), {change_parameters, Manager_Pid, Parameters}).
+change_weights(Weights, Manager_Pid, Neuron_Number) -> gen_statem:cast(gen_Name("neuron", Neuron_Number), {change_weights, Manager_Pid, Weights}).
+determine_output(Input_Len, Manager_Pid, Value, Neuron_Number) ->
+  gen_statem:cast(gen_Name("neuron", Neuron_Number), {output_path, Manager_Pid, Input_Len, Value}).
 stop_neuron(Neuron_Number) -> gen_statem:cast(gen_Name("neuron", Neuron_Number), {stop}).
 
 %% @private
@@ -225,7 +244,7 @@ start() ->
   sys:trace(Pid, true),
   Length = math:ceil(maps:get(simulation_time, ParaMap) / maps:get(dt, ParaMap)),
   I = list_same(1.5, Length + 1),
-  neuron:change_weights([1, 20, 30], 1),
+%%  neuron:change_weights([1, 20, 30], 1),
   neuron:new_data(I, 1),
   neuron:determine_output(3, 10, 1),
   neuron:determine_output(3, 20, 1),
