@@ -122,6 +122,7 @@ active(cast, {output_path, Manager_Pid, Input_Len, Value}, State = #neuron_state
     true -> New_Left = Left - 1,
       New_Max = Max_Value % The previous amount of spikes was bigger
   end,
+  io:format("Neuron output Old: ~p New: ~p~n", [New_Max, Max_Value]),
   {next_state, active, State#neuron_state{output_result = {New_Left, New_Max}}};
 
 %% Event of changing weights
