@@ -106,22 +106,25 @@ active(cast, {output_path, Manager_Pid, Input_Len, Value}, State = #neuron_state
   if
     Left == -1000 ->
       case Input_Len == 1 of % Only one neuron in the input layer, that means we need to send the value now
-        true -> Temp_Left = Left,
+        true ->
+          Temp_Left = Left,
           Temp_Max = Max_Value, % First time
           State#neuron_state.neuron_pid ! {maximal_amount, Manager_Pid, Value};
-        false -> Temp_Left = Input_Len - 1,
+        false ->
+          Temp_Left = Input_Len - 1,
           Temp_Max = Value % First time
       end,
       New_Left = Temp_Left,
       New_Max = Temp_Max;
     Left == 1 -> New_Left = -1000,
       New_Max = -1000, % Reset after we finish
-      State#neuron_state.neuron_pid ! {maximal_amount, Manager_Pid, Value};
+      State#neuron_state.neuron_pid ! {maximal_amount, Manager_Pid, Max_Value};
     Value > Max_Value -> New_Left = Left - 1,
       New_Max = Value; % New maximal amount of spikes
     true -> New_Left = Left - 1,
       New_Max = Max_Value % The previous amount of spikes was bigger
   end,
+  io:format("Neuron Old: ~p New: ~p~n", [Max_Value, New_Max]),
   {next_state, active, State#neuron_state{output_result = {New_Left, New_Max}}};
 
 %% Event of changing weights

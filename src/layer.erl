@@ -11,7 +11,7 @@
 
 %% gen_server callbacks
 -export([start/0, active_input_layer/1, change_input_layer/1]).
--record(neurons, {input_layer = 5, output_layer = 4}).
+-record(neurons, {input_layer = 256, output_layer = 4}).
 
 %%TODO: Start the layer with ParaMap
 start() ->
@@ -37,12 +37,12 @@ start() ->
   initiate_layer(1, In, ParaMap, neuronEts), % Input layer - 5 neurons
   initiate_layer(In + 1, In + Out, ParaMap, neuronEts), % Output layer - 4 neurons
   %% TODO: Return this
-  Weights_List_pre = ["16.0\t26\t36.65\t46\t56", "17\t27\t37\t47\t57.8", "18\t28\t38\t48\t58", "19\t29\t39\t49\t59"],
-%%  Weights_List_pre = get_file_contents("weights.txt"),
+%%  Weights_List_pre = ["16.0\t26\t36.65\t46\t56", "17\t27\t37\t47\t57.8", "18\t28\t38\t48\t58", "19\t29\t39\t49\t59"],
+  Weights_List_pre = get_file_contents("weights.txt"),
   No_tab = [string:tokens(X, "\t") || X <- Weights_List_pre],
   %% TODO: Return this
-%%  Weights_List = [clean_list("\n", X) || X <- No_tab],
-  Weights_List = No_tab,
+  Weights_List = [clean_list("\n", X) || X <- No_tab],
+%%  Weights_List = No_tab,
   Weights = [list_to_numbers(length(X), X) || X <- Weights_List], % Splits from the tab
   Weights_Trans = transpose(Weights), % Now we insert in the correct way the weights
   backup_weights(1, In + 1, Weights_Trans, weightsEts), % Save the weights in separate ets to have a backup of them in case we will need
@@ -60,6 +60,12 @@ start() ->
   active_input_layer(I),
   bye.
 
+%% Doesn't work
+%%test() ->
+%%  {ok, PyPID} = python:start([{python_path, "conv.py"}, {python, "python3"}]),
+%%  io:fwrite("convoloution in progress !!!!!!! ~n", []),%% todo: easy to call server by node and Pid name
+%%  T = python:call(PyPID, conv, getImageTraining, ["image1"]), %%todo: we need to draw for a time
+%%  hey.
 
 %% @doc  Receives:   I - The information from the picture
 %%                Sends the information arrived from the user's picture to the input layer
