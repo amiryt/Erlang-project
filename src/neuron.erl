@@ -116,12 +116,13 @@ active(cast, {output_path, Manager_Pid, Input_Len, Value}, State = #neuron_state
       New_Max = Temp_Max;
     Left == 1 -> New_Left = -1000,
       New_Max = -1000, % Reset after we finish
-      State#neuron_state.neuron_pid ! {maximal_amount, Manager_Pid, Value};
+      State#neuron_state.neuron_pid ! {maximal_amount, Manager_Pid, Max_Value};
     Value > Max_Value -> New_Left = Left - 1,
       New_Max = Value; % New maximal amount of spikes
     true -> New_Left = Left - 1,
       New_Max = Max_Value % The previous amount of spikes was bigger
   end,
+  io:format("Neuron output Old: ~p New: ~p~n", [New_Max, Max_Value]),
   {next_state, active, State#neuron_state{output_result = {New_Left, New_Max}}};
 
 %% Event of changing weights
