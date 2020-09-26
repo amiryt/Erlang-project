@@ -9,7 +9,7 @@ init()->
   register(gui,Pid),
 
   put(servernode,'serverNode@127.0.0.1')
-.
+  .
 
 
 
@@ -139,7 +139,7 @@ make_window() ->
 
 
 
-  %% wxSizer:add(ImageSizer, StaticBitmap, []),
+ %% wxSizer:add(ImageSizer, StaticBitmap, []),
   %%wxSizer:add(ImageSizer, StaticBitmap1, []),
   %%wxSizer:add(ImageSizer, StaticBitmap2, []),
 
@@ -202,12 +202,12 @@ loop(State) ->
       io:fwrite("recieved message finished message ~n", []),%% todo: easy to call server by node and Pid name
       loop(State);
 
-  %% recieveing mesagews from out server
+    %% recieveing mesagews from out server
     {server,Msg}->
       io:fwrite("recieved message ~n", []),%% todo: easy to call server by node and Pid name
       loop(State);
 
-  %%%%
+    %%%%
 
 
 
@@ -232,28 +232,28 @@ loop(State) ->
         true ->
           case get(isactive) of
 
-            0->
-              case list_to_integer(T1001_val) of
-                1->put(isactive,1),
-                  spawn(server,testImage,[server,'serverNode@127.0.0.1',1]),
-                  wxStaticText:setLabel(ST2001, "The network in progress please wait"),
-                  io:fwrite("send a signal of  the picture num One~n", []);%% todo : send to convolution and stop receiveing commands
-                %%loop(State);
-                2->put(isactive,1),
+          0->
+          case list_to_integer(T1001_val) of
+            1->put(isactive,1),
+              spawn(server,testImage,[server,'serverNode@127.0.0.1',0]),
+              wxStaticText:setLabel(ST2001, "The network in progress please wait"),
+              io:fwrite("send a signal of  the picture num One~n", []);%% todo : send to convolution and stop receiveing commands
+              %%loop(State);
+            2->put(isactive,1),
 
-                  spawn(server,testImage,[server,'serverNode@127.0.0.1',2]),
-                  wxStaticText:setLabel(ST2001, "The network in progress please wait"),
-                  io:fwrite("send a signal of  the picture num Two~n", []);
-                3->put(isactive,1),
-                  spawn(server,testImage,[server,'serverNode@127.0.0.1',3]),
-                  wxStaticText:setLabel(ST2001, "The network in progress please wait"),
-                  io:fwrite("send a signal of  the picture num Three~n", []);%%%......
-                _-> wxStaticText:setLabel(ST2001, "Invalid input, Please chose again")
-              end;
-            %% T1001_int = list_to_integer(T1001_val),
-            %%cntdwn(T1001_int, ST2001);  %letting cntdwn/2 fill in the textbox
+              spawn(server,testImage,[server,'serverNode@127.0.0.1',1]),
+              wxStaticText:setLabel(ST2001, "The network in progress please wait"),
+              io:fwrite("send a signal of  the picture num Two~n", []);
+            3->put(isactive,1),
+              spawn(server,testImage,[server,'serverNode@127.0.0.1',2]),
+              wxStaticText:setLabel(ST2001, "The network in progress please wait"),
+              io:fwrite("send a signal of  the picture num Three~n", []);%%%......
+            _-> wxStaticText:setLabel(ST2001, "Invalid input, Please chose again")
+          end;
+         %% T1001_int = list_to_integer(T1001_val),
+          %%cntdwn(T1001_int, ST2001);  %letting cntdwn/2 fill in the textbox
 
-            _->wxStaticText:setLabel(ST2001, "The network in progress please wait")
+          _->wxStaticText:setLabel(ST2001, "The network in progress please wait")
           end;
         _ ->
           wxStaticText:setLabel(ST2001, "Only integers are allowed")

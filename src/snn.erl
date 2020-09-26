@@ -16,7 +16,8 @@
 init()->
 
   Pid = spawn(snn, start,[]),
-  register(snn,Pid)
+  register(snn,Pid),
+  layer:start()
   .
 
 start()->
@@ -33,8 +34,14 @@ snnHandler()->
 
     {test,InData}->
       io:fwrite("data recieved succesfully and need to test it ........~n", []),
-      Result=[1,4,9,16],%% todo : snn network testt imagee
-      spawn(server,graphDraw,[server,'serverNode@127.0.0.1',Result]),
+      [H|T]=InData,
+       %io:format("INPUT DATA IS:::::: ~p ~n",[H]),
+      io:format("INPUT H  IS:::::: ~p~n",[is_list(H)]),
+      [H1|T1]=H,
+      io:format("INPUT H1 IS:::::: ~p ~n",[is_integer(H1)]),
+      layer:active_input_layer(InData),%% INDATtaa is list of lists
+      %Result=[1,4,9,16],%% todo : snn network testt imagee
+      %spawn(server,graphDraw,[server,'serverNode@127.0.0.1',Result]),
       io:fwrite("sending the result to the server ........~n", []),
       snnHandler()
       ;
@@ -49,3 +56,4 @@ snnHandler()->
 
 
 .
+

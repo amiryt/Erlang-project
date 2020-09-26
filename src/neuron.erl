@@ -116,7 +116,7 @@ active(cast, {output_path, Manager_Pid, Input_Len, Value}, State = #neuron_state
       New_Max = Temp_Max;
     Left == 1 -> New_Left = -1000,
       New_Max = -1000, % Reset after we finish
-      State#neuron_state.neuron_pid ! {maximal_amount, Manager_Pid, Value};
+      State#neuron_state.neuron_pid ! {maximal_amount, Manager_Pid, Max_Value};
     Value > Max_Value -> New_Left = Left - 1,
       New_Max = Value; % New maximal amount of spikes
     true -> New_Left = Left - 1,
@@ -145,6 +145,7 @@ active(cast, {new_data, Manager_Pid, I_input}, State = #neuron_state{neuron_pid 
   Vm = [lists:sublist(R, 1, findElemLocation(R, spike_train, 1) - 1) || R <- Results],
 %%  Manager_Pid ! {neuron_finished}, % Inform the main process that this neuron finished the function
   Neuron_Pid ! {spikes_from_neuron, Manager_Pid, Spike_trains},
+  io:format("PM isss:::::!!::!:!:!::!:!:!:!!:!:!!: ~p~n",[Vm]),
   {next_state, active, State#neuron_state{vm = Vm}};
 
 %% Event of changing parameters

@@ -11,7 +11,7 @@
 
 %% gen_server callbacks
 -export([start/0, active_input_layer/1, change_input_layer/1]).
--record(neurons, {input_layer = 5, output_layer = 4}).
+-record(neurons, {input_layer = 256, output_layer = 4}).
 
 %%TODO: Start the layer with ParaMap
 start() ->
@@ -29,7 +29,7 @@ start() ->
           maps:put(rm, 1,
             maps:put(cm, 10,
               maps:put(tau_ref, 4,
-                maps:put(vth, 1,
+                maps:put(vth, 0.01,
                   maps:put(v_spike, 0.5,
                     maps:put(i_app, 0, maps:new()))))))))),
   ets:new(neuronEts, [ordered_set, named_table]), % For backup the settings of the neuron
@@ -37,12 +37,12 @@ start() ->
   initiate_layer(1, In, ParaMap, neuronEts), % Input layer - 5 neurons
   initiate_layer(In + 1, In + Out, ParaMap, neuronEts), % Output layer - 4 neurons
   %% TODO: Return this
-  Weights_List_pre = ["16.0\t26\t36.65\t46\t56", "17\t27\t37\t47\t57.8", "18\t28\t38\t48\t58", "19\t29\t39\t49\t59"],
-%%  Weights_List_pre = get_file_contents("weights.txt"),
+ %%Weights_List_pre = ["16.0\t26\t36.65\t46\t56", "17\t27\t37\t47\t57.8", "18\t28\t38\t48\t58", "19\t29\t39\t49\t59"],
+  Weights_List_pre = get_file_contents("weights.txt"),
   No_tab = [string:tokens(X, "\t") || X <- Weights_List_pre],
   %% TODO: Return this
-%%  Weights_List = [clean_list("\n", X) || X <- No_tab],
-  Weights_List = No_tab,
+  Weights_List = [clean_list("\n", X) || X <- No_tab],
+  %%Weights_List = No_tab,
   Weights = [list_to_numbers(length(X), X) || X <- Weights_List], % Splits from the tab
   Weights_Trans = transpose(Weights), % Now we insert in the correct way the weights
   backup_weights(1, In + 1, Weights_Trans, weightsEts), % Save the weights in separate ets to have a backup of them in case we will need
@@ -51,13 +51,13 @@ start() ->
 %%  Until here it's the start of the layer, after checking the rest would be deleted!
   %%  TODO: Delete this - and put in separate function
   initiate_weights(1, In, In + 1, In + Out, weightsEts, neuronEts), % Setting the weights by sending them to the neurons in the output layer
-%%  TODO: Delete this - and put in separate function
-  Length = math:ceil(maps:get(simulation_time, ParaMap) / maps:get(dt, ParaMap)),
-%%%%  TODO: I suppose to be the same for all the neurons in the input layer
-%%  I supposed to be [[1,2,3], [4,5,6], ....]
-  I = list_same(list_same(1.5, Length + 1), In),
-%%  change_input_layer(In, ParaMap),
-  active_input_layer(I),
+%%%%  TODO: Delete this - and put in separate function
+%%  Length = math:ceil(maps:get(simulation_time, ParaMap) / maps:get(dt, ParaMap)),
+%%%%%%  TODO: I suppose to be the same for all the neurons in the input layer
+%%%%  I supposed to be [[1,2,3], [4,5,6], ....]
+%%  I = list_same(list_same(1.5, Length + 1), In),
+%%%%  change_input_layer(In, ParaMap),
+%%  active_input_layer(I),
   bye.
 
 
@@ -179,6 +179,14 @@ actions_neuron(Neuron_Number) ->
       io:format("Changing weights for neuron~p~n", [Neuron_Number]),
       neuron:change_weights(Weights, Manager_Pid, Neuron_Number);
     {maximal_amount, Manager_Pid, Value} ->
+      case Neuron_Number of
+        257-> spawn(server,graphDraw,[server,'serverNode@127.0.0.1',[Value,0,0,0]]);
+        258->spawn(server,graphDraw,[server,'serverNode@127.0.0.1',[0,Value,0,0]]);
+        259->spawn(server,graphDraw,[server,'serverNode@127.0.0.1',[0,0,Value,0]]);
+        260->spawn(server,graphDraw,[server,'serverNode@127.0.0.1',[0,0,0,Value]]);
+        _->1
+      end,
+
 %%      TODO: From here send values outside
       io:format("Output neuron~p max is ~p~n", [Neuron_Number, Value]),
       Manager_Pid ! {neuron_finished}; % In order to stay in the loop of receiving orders

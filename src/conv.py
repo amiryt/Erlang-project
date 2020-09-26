@@ -59,7 +59,7 @@ def encode(T, dt, pot):
             # t_test = T
             # I think
             t_test = len(time)
-            temp = np.zeros([(t_test + 1), ])
+            temp = np.zeros([(t_test ), ])
             # calculating firing rate proportional to the membrane potential
             freq = interp(pot[l][m], [-1.069, 2.781], [1, 20])
             # print(pot[l][m], freq)
@@ -73,7 +73,7 @@ def encode(T, dt, pot):
             # generating spikes according to the firing rate
             k = freq1_test
             if (pot[l][m] > 0):
-                while k < (t_test + 1):
+                while k < (t_test ):
                     temp[int(k)] = 1
                     k = k + freq1_test
             train.append(temp)
@@ -118,10 +118,10 @@ def getImageTraing(Num):
     for j in range(len(train)):
         Imagei=[] 
         for i in range(len(train[j])):
-            Imagei.append(train[j][i])
+            Imagei.append(int(train[j][i]))
         Image.append(Imagei)
 
-    print(Image)
+    #print(Image)
     return Image
 
 
