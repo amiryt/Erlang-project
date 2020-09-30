@@ -2,6 +2,13 @@ from numpy import *
 import imageio
 import math
 from matplotlib.pyplot import *
+from erlport import Port, Protocol
+
+
+class HelloProtocol(Protocol):
+
+    def handle_hello(self, name):
+        return "Hello, %s" % name
 
 
 def rf(inp):
@@ -121,13 +128,16 @@ def getImageTraining(Num):
             Imagei.append(train[j][i])
         Image.append(Imagei)
 
-    print(Image)
+    # print(Image)
     return Image
 
 
+# if __name__ == "__main__":
+#     proto = HelloProtocol()
+#     proto.run(Port(use_stdio=True))
+
 if __name__ == '__main__':
-    getImageTraining()
-# return Image
+    getImageTraining("image1")
 
 
 # with open(train_text, 'r') as f:

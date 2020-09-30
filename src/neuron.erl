@@ -124,7 +124,7 @@ active(cast, {output_path, Manager_Pid, Input_Len, Value}, State = #neuron_state
     true -> New_Left = Left - 1,
       New_Max = Max_Value % The previous amount of spikes was bigger
   end,
-  io:format("Neuron Old: ~p New: ~p~n", [Max_Value, New_Max]),
+  io:format("Neuron Old: ~p New: ~p~n", [New_Max, Max_Value]),
   {next_state, active, State#neuron_state{output_result = {New_Left, New_Max}}};
 
 %% Event of changing weights
@@ -146,6 +146,7 @@ active(cast, {new_data, Manager_Pid, I_input}, State = #neuron_state{neuron_pid 
   Results = [lif(X, State#neuron_state.time_list, State, 0, []) || X <- I_synapses],
   Spike_trains = [returnFromElem(R, spike_train) || R <- Results],
   Vm = [lists:sublist(R, 1, findElemLocation(R, spike_train, 1) - 1) || R <- Results],
+%%  io:format("Vm neuron: ~p", [Vm]),
 %%  Manager_Pid ! {neuron_finished}, % Inform the main process that this neuron finished the function
   Neuron_Pid ! {spikes_from_neuron, Manager_Pid, Spike_trains},
   {next_state, active, State#neuron_state{vm = Vm}};

@@ -10,7 +10,7 @@
 -author("amiryt").
 
 %% gen_server callbacks
--export([start/0, active_input_layer/1, change_input_layer/1]).
+-export([test/0, start/0, active_input_layer/1, change_input_layer/1]).
 -record(neurons, {input_layer = 256, output_layer = 4}).
 
 %%TODO: Start the layer with ParaMap
@@ -29,7 +29,7 @@ start() ->
           maps:put(rm, 1,
             maps:put(cm, 10,
               maps:put(tau_ref, 4,
-                maps:put(vth, 1,
+                maps:put(vth, 0.0205,
                   maps:put(v_spike, 0.5,
                     maps:put(i_app, 0, maps:new()))))))))),
   ets:new(neuronEts, [ordered_set, named_table]), % For backup the settings of the neuron
@@ -43,7 +43,7 @@ start() ->
   %% TODO: Return this
   Weights_List = [clean_list("\n", X) || X <- No_tab],
 %%  Weights_List = No_tab,
-  Weights = [list_to_numbers(length(X), X) || X <- Weights_List], % Splits from the tab
+  Weights = [list_to_numbers(X) || X <- Weights_List], % Splits from the tab
   Weights_Trans = transpose(Weights), % Now we insert in the correct way the weights
   backup_weights(1, In + 1, Weights_Trans, weightsEts), % Save the weights in separate ets to have a backup of them in case we will need
 
@@ -53,19 +53,33 @@ start() ->
   initiate_weights(1, In, In + 1, In + Out, weightsEts, neuronEts), % Setting the weights by sending them to the neurons in the output layer
 %%  TODO: Delete this - and put in separate function
   Length = math:ceil(maps:get(simulation_time, ParaMap) / maps:get(dt, ParaMap)),
-%%%%  TODO: I suppose to be the same for all the neurons in the input layer
+%%%%  TODO: I suppose to be the same for all the neurons in the input layer  - AND DELETE TEST!!!
 %%  I supposed to be [[1,2,3], [4,5,6], ....]
-  I = list_same(list_same(1.5, Length + 1), In),
+%%  I = list_same(list_same(1.5, Length + 1), In),
+  I = test(),
+
 %%  change_input_layer(In, ParaMap),
   active_input_layer(I),
   bye.
 
 %% Doesn't work
-%%test() ->
-%%  {ok, PyPID} = python:start([{python_path, "conv.py"}, {python, "python3"}]),
-%%  io:fwrite("convoloution in progress !!!!!!! ~n", []),%% todo: easy to call server by node and Pid name
+test() ->
+%%  Port = open_port({spawn, "python -u conv.py"}, [{packet, 1}, binary]),
+%%  port_command(Port, term_to_binary({conv, "Amir"})),
+%%  receive
+%%    {Port, {data, Data}} ->
+%%      binary_to_term(Data)
+%%  end,
+%%  {ok, CurrentDirectory} = file:get_cwd(),
+%%  TT = "C:/Program Files/Python/Python38/ python.exe",
+%%  {ok, PyPID} = python:start([{python_path, "conv.py"}, {python, "python"}]),
+%%  io:fwrite("convolution in progress !!!!!!! ~n", []),%% todo: easy to call server by node and Pid name
 %%  T = python:call(PyPID, conv, getImageTraining, ["image1"]), %%todo: we need to draw for a time
-%%  hey.
+  Values = get_file_contents("train11.txt"),
+  Clean_List = [remove("\n", X) || X <- Values],
+  New_List = [[[Y] || Y <- X] || X <- Clean_List],
+  Input_Data = [list_to_numbers(X) || X <- New_List].
+
 
 %% @doc  Receives:   I - The information from the picture
 %%                Sends the information arrived from the user's picture to the input layer
@@ -342,10 +356,10 @@ list_same(Num, Len) ->
 %% @doc Receives: List - List of strings
 %%                         Len - List length
 %%      Returns:  A list of floats & integers
-list_to_numbers(0, []) ->
+list_to_numbers([]) ->
   [];
-list_to_numbers(Len, [H | T]) ->
-  [list_to_number(H) | list_to_numbers(Len - 1, T)].
+list_to_numbers([H | T]) ->
+  [list_to_number(H) | list_to_numbers(T)].
 
 
 %% @doc Receives: Str - A list that represent one string
