@@ -15,10 +15,11 @@ def save():
     filename = "image" + str(image_number) + ".png"
     image1.thumbnail(size=(16, 16))
     enhancer = ImageEnhance.Contrast(image1)
-    enhanced_im = enhancer.enhance(8.0)
+    enhanced_im = enhancer.enhance(200.0)
     inverted_image = PIL.ImageOps.invert(enhanced_im)
-    inverted_image = inverted_image.convert('L')  # convert image to black and white
-    inverted_image.save(filename, optimize=True, quality=30)
+    inverted_image = inverted_image.convert("L")  # Convert using adaptive palette of color depth 8 "L"
+    # inverted_image = inverted_image.convert("P", colors=8)  # Convert using adaptive palette of color depth 8 "L"
+    inverted_image.save(filename, optimize=True, quality=90)
     image_number += 1
     # print(image1.size)
 
@@ -26,8 +27,8 @@ def save():
 def paint(event):
     x1, y1 = (event.x - 1), (event.y - 1)
     x2, y2 = (event.x + 1), (event.y + 1)
-    cv.create_oval(x1, y1, x2, y2, fill="black", width=5)
-    draw.line([x1, y1, x2, y2], fill="black", width=5)
+    cv.create_oval(x1, y1, x2, y2, fill="black", width=1)
+    draw.line([x1, y1, x2, y2], fill="black", width=0)
 
 
 def del_rect():
@@ -42,7 +43,6 @@ root = Tk()
 # Tkinter create a canvas to draw on
 cv = Canvas(root, width=width, height=height, bg='white')
 cv.pack()
-
 
 # PIL create an empty image and draw object to draw on
 # memory only, not visible

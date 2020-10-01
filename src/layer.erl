@@ -24,7 +24,7 @@ start() ->
 %%    countNeuronsLatch(In, Self) end), % This is pid responsible to make sure that the functions were finished
   ParaMap =
     maps:put(dt, 0.125,
-      maps:put(simulation_time, 50,
+      maps:put(simulation_time, 150,
         maps:put(t_rest, 0,
           maps:put(rm, 1,
             maps:put(cm, 10,
@@ -75,7 +75,7 @@ test() ->
 %%  {ok, PyPID} = python:start([{python_path, "conv.py"}, {python, "python"}]),
 %%  io:fwrite("convolution in progress !!!!!!! ~n", []),%% todo: easy to call server by node and Pid name
 %%  T = python:call(PyPID, conv, getImageTraining, ["image1"]), %%todo: we need to draw for a time
-  Values = get_file_contents("train11.txt"),
+  Values = get_file_contents("train_more1.txt"),
   Clean_List = [remove("\n", X) || X <- Values],
   New_List = [[[Y] || Y <- X] || X <- Clean_List],
   Input_Data = [list_to_numbers(X) || X <- New_List].
@@ -204,7 +204,12 @@ actions_neuron(Neuron_Number) ->
       Manager_Pid ! {neuron_finished}; % In order to stay in the loop of receiving orders
     {spikes_from_neuron, Manager_Pid, Spike_trains} -> % The current received from the neuron
 %%      io:format("New Spikes from neuron~n"),
-      Num_Spikes = [lists:sum(X) || X <- Spike_trains],
+%%      Lateral Inhibition
+      Train_Temp = transpose(Spike_trains),
+      Lateral_Train = [setFromMax(lists:max(X), X) || X <- Train_Temp],
+      Spike_Train_New = transpose(Lateral_Train),
+%%      Spike_Train_New = Spike_trains,
+      Num_Spikes = [lists:sum(X) || X <- Spike_Train_New],
       io:format("Neuron~p, number of spikes: ~p~n", [Neuron_Number, Num_Spikes]),
       In = element(2, #neurons{}),
       Out = element(3, #neurons{}),
@@ -227,9 +232,6 @@ actions_neuron(Neuron_Number) ->
 %%                Sends the output neurons the values
 output_requests([], _, [], _) ->
   io:format("Finished sending output neurons~n");
-%%  receive
-%%    {finished_function} -> io:format("Finished sending output neurons~n")
-%%  end;
 output_requests(Output_Info, Input_Len, Num_Spikes, Manager_Pid) ->
   Neuron_Info = hd(Output_Info),
   io:format("Layer(output_requests): Sending from to output neuron~p spikes: ~p~n", [element(1, Neuron_Info), hd(Num_Spikes)]),
@@ -307,9 +309,6 @@ set_weights([], Input_Neuron, _, NeuronEts, Weights_List, Pid_Manager) ->
   Input_Neuron_Info = hd(ets:lookup(NeuronEts, Input_Neuron)),
   Pid_Input = element(3, Input_Neuron_Info),
   Pid_Input ! {weights, Pid_Manager, Weights}, % The layer sends request to the neuron to change his weights
-%%  receive
-%%    Info -> Info
-%%  end,
   finished;
 set_weights(Neurons_Numbers, Input_Neuron, WeightsEts, NeuronEts, Weights_List, Pid_Manager) ->
   io:format("Setting weight between neuron~p to neuron~p~n", [Input_Neuron, hd(Neurons_Numbers)]),
@@ -394,6 +393,7 @@ clean_list(_, []) ->
 clean_list(TargetStr, List) ->
   [remove(TargetStr, hd(List)) | clean_list(TargetStr, tl(List))].
 
+
 %% @doc Receives: TargetStr - The character we want to delete
 %%                Str - The string we want to edit
 %%      Returns:  New string
@@ -406,3 +406,20 @@ remove([Char] = TargetStr, _Str = [Char | Chars], NewStr) ->% When Char matches 
   remove(TargetStr, Chars, NewStr);
 remove(TargetStr, _Str = [Char | Chars], NewStr) ->% When the other clauses don't match, i.e. when Char does NOT match the first character in Str
   remove(TargetStr, Chars, [Char | NewStr]).
+
+
+%% @doc Receives: Max_Value - The maximal value in the list
+%%                List - The list of values
+%%      Returns:  New list that delete all elements from the first max from: [0,1,1,0,1] To: [0,1,0,0,0]
+setFromMax(Max_Value, List) ->
+  setFromMax(Max_Value, List, false).
+setFromMax(_, [], _) ->
+  [];
+setFromMax(Val, List, true) ->
+  [0 | setFromMax(Val, tl(List), true)];
+setFromMax(Max_Value, List, false) ->
+  Flag = if
+           hd(List) == Max_Value -> true;
+           true -> false
+         end,
+  [hd(List) | setFromMax(Max_Value, tl(List), Flag)].

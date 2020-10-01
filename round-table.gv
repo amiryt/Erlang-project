@@ -1,0 +1,66 @@
+// The Round Table
+digraph G {
+
+    rankdir = LR
+    splines = line
+
+    node [fixedsize = true, label = ""];
+
+    subgraph cluster_0 {
+    color = white;
+    node [style = solid,color = blue4, width=1.5, shape = square];
+    Im1;
+    label = "Image Processing";
+    }
+
+    subgraph cluster_1 {
+    color = white;
+    node [style = solid,color = blue4, width=1.5, shape = square];
+    rp1;
+    label = "Receptive Field";
+    }
+
+    subgraph cluster_2 {
+    color = white;
+    node [style = solid,color = blue4, shape = circle];
+    x1 x2;
+    node [style = solid,color = blue4, shape = circle];
+    x3;
+    node [style = solid,color = blue4, shape = point];
+    p1 p2 p3;
+    label = "Input layer";
+    }
+
+    subgraph cluster_3 {
+    color = white;
+    node [style = solid,color = red2, shape = circle];
+    a12 a22 a32 a42;
+    label = "Output layer";
+    }
+    Im1 -> rp1;
+    a12 [label = output1];
+    a22 [label = output2];
+    a32 [label = output3];
+    a42 [label = output4];
+    x1 [label = neuron1];
+    x2 [label = neuron2];
+    x3 [label = neuron256];
+    rp1 -> x1;
+    rp1 -> x2;
+    x1 -> a12;
+    x1 -> a22;
+    rp1 -> p1
+    rp1 -> p2
+    rp1 -> p3
+    rp1 -> x3;
+    x1 -> a32;
+    x1 -> a42;
+    x2 -> a12;
+    x2 -> a22;
+    x2 -> a32;
+    x2 -> a42;
+    x3 -> a12;
+    x3 -> a22;
+    x3 -> a32;
+    x3 -> a42;
+}
