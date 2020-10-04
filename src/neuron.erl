@@ -109,6 +109,7 @@ active(cast, {output_path, Manager_Pid, Input_Len, Value}, State = #neuron_state
         true ->
           Temp_Left = Left,
           Temp_Max = Max_Value, % First time
+%%          TODO: Change every "neuron_pid" HERE to the output computer node and pid
           State#neuron_state.neuron_pid ! {maximal_amount, Manager_Pid, Value};
         false ->
           Temp_Left = Input_Len - 1,
@@ -198,15 +199,10 @@ handle_event(_EventType, _EventContent, _StateName, State = #neuron_state{}) ->
   NextStateName = the_next_state_name,
   {next_state, NextStateName, State}.
 
-%%handle_common({call, From}, code_length, #{code := Code} = Data) ->
-%%  io:format("Hey~n"),
-%%  {keep_state, Data,
-%%    [{reply, From, length(Code)}]}.
 
 %% Layer functions for neuron
-%%call_length(Neuron_Number) -> gen_statem:call(gen_Name("neuron", Neuron_Number), {call, nothing}).
-new_data(I, Manager_Pid, Neuron_Number) ->
-  gen_statem:cast(gen_Name("neuron", Neuron_Number), {new_data, Manager_Pid, I}).
+new_data(I, Pid_Manager, Neuron_Number) ->
+  gen_statem:cast(gen_Name("neuron", Neuron_Number), {new_data, Pid_Manager, I}).
 change_parameters(Parameters, Manager_Pid, Neuron_Number) ->
   gen_statem:cast(gen_Name("neuron", Neuron_Number), {change_parameters, Manager_Pid, Parameters}).
 change_weights(Weights, Manager_Pid, Neuron_Number) ->

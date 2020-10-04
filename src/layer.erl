@@ -10,12 +10,15 @@
 -author("amiryt").
 
 %% gen_server callbacks
--export([test/0, start/0, active_input_layer/1, change_input_layer/1]).
+-export([test/0, start/2, active_input_layer/1, change_input_layer/1]).
 -record(neurons, {input_layer = 256, output_layer = 4}).
 
-%%TODO: Start the layer with ParaMap
-start() ->
+start(CurrentNumber, NumberComputers) ->
   Neurons = #neurons{},
+  NeuronsInLayer = computer_neurons(1, 1, element(2, Neurons), NumberComputers, maps:new()),
+  {Start, End} = maps:get(CurrentNumber, NeuronsInLayer),
+  ets:new(computerEts, [ordered_set, named_table]),
+  ets:insert(computerEts, {CurrentNumber, {Start, End}}), % In order to know in which computer we are
   In = element(2, Neurons),
   Out = element(3, Neurons),
 %%  Self = self(),
@@ -34,33 +37,61 @@ start() ->
                     maps:put(i_app, 0, maps:new()))))))))),
   ets:new(neuronEts, [ordered_set, named_table]), % For backup the settings of the neuron
   ets:new(weightsEts, [ordered_set, named_table]), % For easy access to the weights
-  initiate_layer(1, In, ParaMap, neuronEts), % Input layer - 5 neurons
-  initiate_layer(In + 1, In + Out, ParaMap, neuronEts), % Output layer - 4 neurons
+%%  initiate_layer(1, In, ParaMap, neuronEts), % Input layer - 5 neurons
+  initiate_layer(Start, End, ParaMap, neuronEts), % Input layer
+  if
+%%    TODO: Do this in other computer (output computer) only once!!!!
+    CurrentNumber == 1 -> initiate_layer(In + 1, In + Out, ParaMap, neuronEts); % Output layer - 4 neurons
+    true -> nothing
+  end,
+%%initiate_layer(In + 1, In + Out, ParaMap, neuronEts), % Output layer - 4 neurons
   %% TODO: Return this
-%%  Weights_List_pre = ["16.0\t26\t36.65\t46\t56", "17\t27\t37\t47\t57.8", "18\t28\t38\t48\t58", "19\t29\t39\t49\t59"],
-  Weights_List_pre = get_file_contents("weights.txt"),
+  Weights_List_pre = ["16.0\t26\t36.65\t46\t56", "17\t27\t37\t47\t57.8", "18\t28\t38\t48\t58", "19\t29\t39\t49\t59"],
+%%  Weights_List_pre = get_file_contents("weights.txt"),
   No_tab = [string:tokens(X, "\t") || X <- Weights_List_pre],
   %% TODO: Return this
-  Weights_List = [clean_list("\n", X) || X <- No_tab],
-%%  Weights_List = No_tab,
+%%  Weights_List = [clean_list("\n", X) || X <- No_tab],
+  Weights_List = No_tab,
   Weights = [list_to_numbers(X) || X <- Weights_List], % Splits from the tab
   Weights_Trans = transpose(Weights), % Now we insert in the correct way the weights
-  backup_weights(1, In + 1, Weights_Trans, weightsEts), % Save the weights in separate ets to have a backup of them in case we will need
-
+%%  Note: We assume the number of weights is correct
+  Weights_for_layer = lists:sublist(Weights_Trans, Start, End - Start + 1),
+  backup_weights(Start, In + 1, Weights_for_layer, weightsEts), % Save the weights in separate ets to have a backup of them in case we will need
+%%  backup_weights(1, In + 1, Weights_for_layer, weightsEts), % Save the weights in separate ets to have a backup of them in case we will need
 
 %%  Until here it's the start of the layer, after checking the rest would be deleted!
   %%  TODO: Delete this - and put in separate function
-  initiate_weights(1, In, In + 1, In + Out, weightsEts, neuronEts), % Setting the weights by sending them to the neurons in the output layer
+  initiate_weights(Start, In, End + 1, In + Out, weightsEts, neuronEts), % Setting the weights by sending them to the neurons in the output layer
+%%  initiate_weights(1, In, In + 1, In + Out, weightsEts, neuronEts), % Setting the weights by sending them to the neurons in the output layer
 %%  TODO: Delete this - and put in separate function
-  Length = math:ceil(maps:get(simulation_time, ParaMap) / maps:get(dt, ParaMap)),
-%%%%  TODO: I suppose to be the same for all the neurons in the input layer  - AND DELETE TEST!!!
+
+
 %%  I supposed to be [[1,2,3], [4,5,6], ....]
-%%  I = list_same(list_same(1.5, Length + 1), In),
   I = test(),
 
 %%  change_input_layer(In, ParaMap),
   active_input_layer(I),
   bye.
+
+%% @doc  Receives: NowComp - The number of the computer we now work on
+%%                            Start - The neuron that starts the layer
+%%                            Total - The total amount of neurons in the input layer
+%%                            NumComputers - The number of computer in the system
+%%                A map with the numbers of computers and the value of neurons: #{1=> {1,128}, 2 => {128,256}}
+computer_neurons(_, _, _, NumComputers, _) when NumComputers == 0 ->
+  error;
+computer_neurons(NowComp, _, _, NumComputers, WorkMap) when NowComp > NumComputers ->
+  WorkMap;
+computer_neurons(NowComp, Start, Total, NumComputers, WorkMap) ->
+  Diff = list_to_number(float_to_list(Total / NumComputers, [{decimals, 0}])), % Number of neurons in the computer
+  Finish = Start + Diff - 1,
+  New_Finish = if
+                 Finish > Total -> Total; % Means in the last computer we will have less than "Diff" neurons
+                 true -> Finish
+               end,
+  New_Map = maps:put(NowComp, {Start, New_Finish}, WorkMap),
+  computer_neurons(NowComp + 1, New_Finish + 1, Total, NumComputers, New_Map).
+
 
 %% Doesn't work
 test() ->
@@ -75,29 +106,34 @@ test() ->
 %%  {ok, PyPID} = python:start([{python_path, "conv.py"}, {python, "python"}]),
 %%  io:fwrite("convolution in progress !!!!!!! ~n", []),%% todo: easy to call server by node and Pid name
 %%  T = python:call(PyPID, conv, getImageTraining, ["image1"]), %%todo: we need to draw for a time
-  Values = get_file_contents("train_more1.txt"),
+  Values = get_file_contents("train_more5.txt"),
   Clean_List = [remove("\n", X) || X <- Values],
   New_List = [[[Y] || Y <- X] || X <- Clean_List],
-  Input_Data = [list_to_numbers(X) || X <- New_List].
+  [list_to_numbers(X) || X <- New_List].
 
 
 %% @doc  Receives:   I - The information from the picture
 %%                Sends the information arrived from the user's picture to the input layer
 %%                This information would come from the spike train that would be made with receptive_field
-active_input_layer(I) ->
-  In = element(2, #neurons{}),
-  Input_Numbers = lists:seq(1, In),
+active_input_layer(I_List) ->
+  {_, {Start, End}} = hd(ets:lookup(computerEts, ets:first(computerEts))), % Since only one value would be in this ets, it's okay to take only the first
+%%  TODO: Receptive field should send the correct currents, but we can still do like that:
+  I = lists:sublist(I_List, Start, End - Start + 1),
+%%  In = element(2, #neurons{}),
+  Input_Numbers = lists:seq(Start, End),
   Input_Pids = [{X, element(3, hd(ets:lookup(neuronEts, X)))} || X <- Input_Numbers],
-  send_data(Input_Pids, I).
+  change_data(Input_Pids, I).
 
 
 %% @doc  Receives:   ParaMap - The map of parameters (can be changed)
 %%                Changes the parameters of the neurons in the input layer
 change_input_layer(ParaMap) ->
-  In = element(2, #neurons{}),
-  Input_Numbers = lists:seq(1, In),
+  {_, {Start, End}} = hd(ets:lookup(computerEts, ets:first(computerEts))), % Since only one value would be in this ets, it's okay to take only the first
+%%  In = element(2, #neurons{}),
+  Input_Numbers = lists:seq(Start, End),
+%%  Input_Numbers = lists:seq(1, In),
   Input_Pids = [{X, element(3, hd(ets:lookup(neuronEts, X)))} || X <- Input_Numbers],
-  send_parameters(Input_Pids, ParaMap).
+  parameters_change(Input_Pids, {Start, End}, ParaMap).
 
 %% --------------------------------------------------------------------------------------
 %%                          LAYER CONFIGURATION FUNCTIONS
@@ -133,10 +169,11 @@ initiate_layer(StartPoint, N, ParaMap, EtsName) ->
 %%                            I - The information from the picture - ALL OF THEM ARE THE SAME
 %%                Sending for all of those neurons the current in order to activate the LIF
 %%TODO: Change here to tl(I) if the current for every neuron aren't the same!!!
-send_data(Input_tuple, I) ->
+change_data(Input_tuple, I) ->
   Self = self(),
   Out = element(3, #neurons{}),
 %%  Here we need to look at the neurons in the output layer
+%%  TODO: Take the part of the manager pid and put it in the output computer
   Pid_Manager = spawn(fun() ->
     countNeuronsLatch(Out, Self) end), % This is pid responsible to make sure that the functions were finished
 %%  In case of falling of one of the neurons (len(I) != len(input neurons))
@@ -146,7 +183,7 @@ send_data(Input_tuple, I) ->
           end,
   send_data(Input_tuple, I_New, Pid_Manager).
 send_data([], _, _) ->
-  io:format("All information passed the input layer~n"),
+%%  io:format("All information passed the input layer~n"),
   receive
     {finished_function} -> io:format("All information passed the input layer~n")
   end;
@@ -157,13 +194,17 @@ send_data(Input_tuple, I, Pid_Manager) ->
 
 
 %% @doc  Receives: Input_tuple - {Number, Pid of that input neuron}
+%%                           ComputerNumber - The number of computer we work on
+%%                           {Start, End} - The first and last neurons numbers in this computer
 %%                          ParaMap - The new parameters map
 %%                Sending the new parameters for the neurons
-send_parameters(Input_tuple, ParaMap) ->
+parameters_change(Input_tuple, {Start, End}, ParaMap) ->
   Self = self(),
-  In = element(2, #neurons{}),
+%%  In = element(2, #neurons{}),
   Pid_Manager = spawn(fun() ->
-    countNeuronsLatch(In, Self) end), % This is pid responsible to make sure that the functions were finished
+    countNeuronsLatch(End - Start, Self) end), % This is pid responsible to make sure that the functions were finished
+%%  Pid_Manager = spawn(fun() ->
+%%    countNeuronsLatch(In, Self) end), % This is pid responsible to make sure that the functions were finished
   send_parameters(Input_tuple, ParaMap, Pid_Manager).
 send_parameters([], _, _) ->
 %%  io:format("All parameters passed the input layer~n");
@@ -198,12 +239,12 @@ actions_neuron(Neuron_Number) ->
     {weights, Manager_Pid, Weights} ->
       io:format("Changing weights for neuron~p~n", [Neuron_Number]),
       neuron:change_weights(Weights, Manager_Pid, Neuron_Number);
+%%    Output computer side
     {maximal_amount, Manager_Pid, Value} ->
 %%      TODO: From here send values outside
       io:format("Output neuron~p max is ~p~n", [Neuron_Number, Value]),
       Manager_Pid ! {neuron_finished}; % In order to stay in the loop of receiving orders
     {spikes_from_neuron, Manager_Pid, Spike_trains} -> % The current received from the neuron
-%%      io:format("New Spikes from neuron~n"),
 %%      Lateral Inhibition
       Train_Temp = transpose(Spike_trains),
       Lateral_Train = [setFromMax(lists:max(X), X) || X <- Train_Temp],
@@ -214,7 +255,12 @@ actions_neuron(Neuron_Number) ->
       In = element(2, #neurons{}),
       Out = element(3, #neurons{}),
       Output_Numbers = lists:seq(In + 1, Out + In),
+%%      TODO: Add here support of neurons from output layer that are in different computer
       Output_Info = [hd(ets:lookup(neuronEts, X)) || X <- Output_Numbers],
+%%      The manager pid is NOW located in one of the input computers
+%%      Self = self(),
+%%      Manager_Pid = spawn(fun() ->
+%%        countNeuronsLatch(Out, Self) end), % This is pid responsible to make sure that the functions were finished
       output_requests(Output_Info, In, Num_Spikes, Manager_Pid),
       hey;
     {new_data, Manager_Pid, {Neuron_Number, I}} ->
@@ -267,7 +313,7 @@ backup_weights(Input_Neuron, Output_Len, Weights, WeightsEts) ->
 save_weights(Start, _, [], _) ->
   io:format("Finished saving weights for neuron~p~n", [Start]);
 save_weights(Start, Output_Neuron, Weights_List, WeightsEts) ->
-%%  io:format("Saving weight ~p between neuron~p to neuron~p~n", [hd(Weights_List), Start, Output_Neuron]),
+  io:format("Saving weight ~p between neuron~p to neuron~p~n", [hd(Weights_List), Start, Output_Neuron]),
   ets:insert(WeightsEts, {{Start, Output_Neuron}, hd(Weights_List)}),
 %%  ets:insert(WeightsEts, {{Output_Neuron, Start}, hd(Weights_List)}), % Not sure about that
   save_weights(Start, Output_Neuron + 1, tl(Weights_List), WeightsEts).
@@ -276,27 +322,29 @@ save_weights(Start, Output_Neuron, Weights_List, WeightsEts) ->
 %%                          WEIGHTS CONFIGURATION FUNCTIONS
 %% --------------------------------------------------------------------------------------
 
-%% @doc  Receives: Input_Len - Number of neurons in the input layer
-%%                Output_Neuron - The number of the output neuron we work on
+%% @doc  Receives: Input_Neuron - The number of neuron we work on (from input layer)
+%%                Input_Len - Number of neurons in this computer
+%%                Last_Layer_Neuron - The number of the last neuron in the layer we work on
 %%                Finish - The number of the last neuron in the output layer
 %%                WeightsEts - The ets name of weights
 %%                NeuronEts - The ets name of neurons
 %%                Pid_Manager - Checks if we finished the function
 %%                Sets all the weights of the neurons
-initiate_weights(Input_Neuron, Input_Len, Output_Neuron, Finish, WeightsEts, NeuronEts) ->
+initiate_weights(Input_Neuron, Input_Len, Last_Layer_Neuron, Finish, WeightsEts, NeuronEts) ->
   Self = self(),
   Pid_Manager = spawn(fun() ->
-    countNeuronsLatch(Input_Len, Self) end), % This is pid responsible to make sure that the functions were finished
-  initiate_weights(Input_Neuron, Input_Len, Output_Neuron, Finish, WeightsEts, NeuronEts, Pid_Manager).
-initiate_weights(Output_Neuron, _, Output_Neuron, _, _, _, _) ->
+    countNeuronsLatch(Last_Layer_Neuron - Input_Neuron, Self) end), % This is pid responsible to make sure that the functions were finished
+%%    countNeuronsLatch(Input_Len, Self) end), % This is pid responsible to make sure that the functions were finished
+  initiate_weights(Input_Neuron, Input_Len, Last_Layer_Neuron, Finish, WeightsEts, NeuronEts, Pid_Manager).
+initiate_weights(Last_Layer_Neuron, _, Last_Layer_Neuron, _, _, _, _) ->
   receive
     {finished_function} -> io:format("Finished setting weights in network~n")
   end;
-initiate_weights(Input_Neuron, Input_Len, Output_Neuron, Finish, WeightsEts, NeuronEts, Pid_Manager) ->
+initiate_weights(Input_Neuron, Input_Len, Last_Layer_Neuron, Finish, WeightsEts, NeuronEts, Pid_Manager) ->
   io:format("Layer(initiate_weights): Setting neuron~p weights~n", [Input_Neuron]),
   Neurons_Numbers = lists:seq(Input_Len + 1, Finish),
   set_weights(Neurons_Numbers, Input_Neuron, WeightsEts, NeuronEts, [], Pid_Manager),
-  initiate_weights(Input_Neuron + 1, Input_Len, Output_Neuron, Finish, WeightsEts, NeuronEts, Pid_Manager).
+  initiate_weights(Input_Neuron + 1, Input_Len, Last_Layer_Neuron, Finish, WeightsEts, NeuronEts, Pid_Manager).
 
 
 %% @doc  Receives: Neurons_Numbers - The neurons of the output layer
@@ -346,10 +394,10 @@ get_all_lines(File, Partial) ->
 %% @doc  Receives: Num - The number we want
 %%                Len - Number of times that "Num" would appear
 %%      Returns:  A list with the same elements Len times
-list_same(_, Finish) when (Finish == 0) ->
-  [];
-list_same(Num, Len) ->
-  [Num | list_same(Num, Len - 1)].
+%%list_same(_, Finish) when (Finish == 0) ->
+%%  [];
+%%list_same(Num, Len) ->
+%%  [Num | list_same(Num, Len - 1)].
 
 
 %% @doc Receives: List - List of strings

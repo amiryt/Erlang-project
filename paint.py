@@ -28,7 +28,7 @@ def paint(event):
     x1, y1 = (event.x - 1), (event.y - 1)
     x2, y2 = (event.x + 1), (event.y + 1)
     cv.create_oval(x1, y1, x2, y2, fill="black", width=10)
-    draw.point([x1, y1, x2, y2], fill="black") #, width=1)
+    draw.line([x1, y1, x2, y2], fill="black", width=5)
 
 
 def del_rect():
