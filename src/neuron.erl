@@ -141,7 +141,7 @@ active(cast, {change_weights, Manager_Pid, User_Weights}, State = #neuron_state{
 
 
 %% Event of new current
-active(cast, {new_data, Manager_Pid, I_input}, State = #neuron_state{neuron_pid = Neuron_Pid, weights = Weights}) ->
+active(cast, {new_data, Pid_Main, I_input}, State = #neuron_state{neuron_pid = Neuron_Pid, weights = Weights}) ->
   io:format("Neuron(active): Event of new data~n"),
   I_synapses = synapses(I_input, Weights), % The current depends on the current of all the other connected neurons and their weights
   Results = [lif(X, State#neuron_state.time_list, State, 0, []) || X <- I_synapses],
@@ -149,7 +149,7 @@ active(cast, {new_data, Manager_Pid, I_input}, State = #neuron_state{neuron_pid 
   Vm = [lists:sublist(R, 1, findElemLocation(R, spike_train, 1) - 1) || R <- Results],
 %%  io:format("Vm neuron: ~p", [Vm]),
 %%  Manager_Pid ! {neuron_finished}, % Inform the main process that this neuron finished the function
-  Neuron_Pid ! {spikes_from_neuron, Manager_Pid, Spike_trains},
+  Neuron_Pid ! {spikes_from_neuron, Pid_Main, Spike_trains},
   {next_state, active, State#neuron_state{vm = Vm}};
 
 %% Event of changing parameters
@@ -201,8 +201,8 @@ handle_event(_EventType, _EventContent, _StateName, State = #neuron_state{}) ->
 
 
 %% Layer functions for neuron
-new_data(I, Pid_Manager, Neuron_Number) ->
-  gen_statem:cast(gen_Name("neuron", Neuron_Number), {new_data, Pid_Manager, I}).
+new_data(I, Pid_Main, Neuron_Number) ->
+  gen_statem:cast(gen_Name("neuron", Neuron_Number), {new_data, Pid_Main, I}).
 change_parameters(Parameters, Manager_Pid, Neuron_Number) ->
   gen_statem:cast(gen_Name("neuron", Neuron_Number), {change_parameters, Manager_Pid, Parameters}).
 change_weights(Weights, Manager_Pid, Neuron_Number) ->
