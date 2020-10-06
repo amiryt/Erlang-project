@@ -12,7 +12,7 @@
 -behaviour(gen_statem).
 
 %% API
--export([start/0, start_link/4]).
+-export([start_link/4]).
 
 %% Callback functions
 -export([init/1, format_status/2, state_name/3, handle_event/4, terminate/3,
@@ -234,37 +234,38 @@ code_change(_OldVsn, StateName, State = #neuron_state{}, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
-start() ->
-%%  Dt = 0.125,
-%%  L = arange(0, 50 + Dt, Dt),
-%%  L1 = mapMult([1,2,3], [4,5,6]),
-  ParaMap =
-    maps:put(dt, 0.125,
-      maps:put(simulation_time, 50,
-        maps:put(t_rest, 0,
-          maps:put(rm, 1,
-            maps:put(cm, 10,
-              maps:put(tau_ref, 4,
-                maps:put(vth, 1,
-                  maps:put(v_spike, 0.5,
-                    maps:put(i_app, 0, maps:new()))))))))),
-  {ok, Pid} = neuron:start_link(1, regular, nothing, ParaMap),
-  sys:trace(Pid, true),
-  Length = math:ceil(maps:get(simulation_time, ParaMap) / maps:get(dt, ParaMap)),
-  I = list_same(1.5, Length + 1),
-%%  neuron:change_weights([1, 20, 30], 1),
-%%  neuron:new_data(I, 1),
-%%  neuron:determine_output(3, 10, 1),
-%%  neuron:determine_output(3, 20, 1),
-%%  neuron:determine_output(3, 30, 1),
-  neuron:stop_neuron(1),
-  hey.
+%%start() ->
+%%%%  Dt = 0.125,
+%%%%  L = arange(0, 50 + Dt, Dt),
+%%%%  L1 = mapMult([1,2,3], [4,5,6]),
+%%  ParaMap =
+%%    maps:put(dt, 0.125,
+%%      maps:put(simulation_time, 50,
+%%        maps:put(t_rest, 0,
+%%          maps:put(rm, 1,
+%%            maps:put(cm, 10,
+%%              maps:put(tau_ref, 4,
+%%                maps:put(vth, 1,
+%%                  maps:put(v_spike, 0.5,
+%%                    maps:put(i_app, 0, maps:new()))))))))),
+%%  {ok, Pid} = neuron:start_link(1, regular, nothing, ParaMap),
+%%  sys:trace(Pid, true),
+%%  Length = math:ceil(maps:get(simulation_time, ParaMap) / maps:get(dt, ParaMap)),
+%%  I = list_same(1.5, Length + 1),
+%%%%  neuron:change_weights([1, 20, 30], 1),
+%%%%  neuron:new_data(I, 1),
+%%%%  neuron:determine_output(3, 10, 1),
+%%%%  neuron:determine_output(3, 20, 1),
+%%%%  neuron:determine_output(3, 30, 1),
+%%  neuron:stop_neuron(1),
+%%  hey.
 
 %% @doc  Receives: Str - String
 %%                          Neuron_Number - The number of the neuron
 %%            Returns:  An atom with the appropriate name
 gen_Name(Str, Neuron_Number) ->
   list_to_atom(lists:flatten(io_lib:format("~s~B", [Str, Neuron_Number]))).
+
 
 %% TODO: Create the update weights function
 %% @doc  Receives: t - Time difference between presynaptic and postsynaptic spikes
@@ -308,6 +309,7 @@ lif(I_synapse, Time_List, State, Prev_Vm, Spike_train) ->
   end,
   [Vm_result | lif(tl(I_synapse), tl(Time_List), State#neuron_state{t_rest = T_rest_new}, Vm_result, [Spike | Spike_train])].
 
+
 %% @doc  Receives: Start - The number we start
 %%                End - The number we end
 %%                Dt - The size of the jumps
@@ -319,6 +321,7 @@ arangeLoop(_, _, Finish) when (Finish == 0) ->
   [];
 arangeLoop(Start, Dt, Rounds) ->
   [Start | arangeLoop(Start + Dt, Dt, Rounds - 1)].
+
 
 %% @doc  Receives: Num - The number we want
 %%                Len - Number of times that "Num" would appear
@@ -339,28 +342,6 @@ synapses(I, Weights) ->
   [I_synapse | synapses(I, tl(Weights))].
 
 
-%% @doc  Receives: L1 - List 1 [1, 2, 3]
-%%                         Arg2 - List 2 [4, 5, 6] / number 4
-%%      Returns:  A list of their mult [4, 10, 18] / mult by number [4, 8, 12]
-mapMult(List1, []) ->
-  lists:map(fun(X) -> (X) end, List1);
-mapMult(List1, Args2) when (is_list(Args2) and is_number(Args2)) ->
-  lists:map(fun(X) -> (X * Args2) end, List1);
-mapMult(List1, Args2) when (is_list(Args2) and is_list(Args2)) ->
-  mapMultLoop(List1, Args2, length(List1), length(Args2)).
-mapMultLoop(_, _, List1length, Args2length) when List1length =/= Args2length ->
-  lenError;
-mapMultLoop(List1, Args2, List1length, Args2length) when List1length =:= Args2length ->
-  lists:map(fun(X) -> hd(X) * hd(tl(X)) end, listsToCouple(List1, Args2, [])).
-
-%% @doc  Receives: L1 - List 1 [1, 2, 3]
-%%                             L2 - List 2 [4, 5, 6]
-%%      Returns:  A list of couples [[1, 4], [2, 5], [3, 6]]
-listsToCouple([], [], Acc) ->
-  lists:reverse(Acc);
-listsToCouple([H1 | T1], [H2 | T2], Acc) ->
-  listsToCouple(T1, T2, [[H1 | [H2]] | Acc]).
-
 %% @doc  Receives: List - A List of numbers
 %%                          Elem - The element we want to find in the list
 %%      Returns:  A list of what comes after Elem
@@ -370,6 +351,7 @@ returnFromElem([H | T], Elem) when Elem == H ->
   T;
 returnFromElem([_ | Rest], Elem) ->
   returnFromElem(Rest, Elem).
+
 
 %% @doc  Receives: List - A List of numbers
 %%                          Elem - The element we want to find in the list
