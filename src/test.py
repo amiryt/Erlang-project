@@ -5,8 +5,10 @@ def print_hi(name):
 
 def print(Nm):
     # Use a breakpoint in the code line below to debug your script.
-
-   plt.plot([1, 2, 3, 4], Nm)
+   #plt.figure(figsize=(9, 3))
+  # plt.subplot(131)
+  #matplotlib.pyplot.bar(x, height, width=0.8, bottom=None, *, align='center', data=None, **kwargs)
+   plt.bar(['neuron1', 'neuron2', 'neuron3', 'neuron4'], Nm)
    plt.ylabel('some numbers')
    plt.show()
    return 1

@@ -180,10 +180,10 @@ actions_neuron(Neuron_Number) ->
       neuron:change_weights(Weights, Manager_Pid, Neuron_Number);
     {maximal_amount, Manager_Pid, Value} ->
       case Neuron_Number of
-        257-> spawn(server,graphDraw,[server,'serverNode@127.0.0.1',[Value,0,0,0]]);
-        258->spawn(server,graphDraw,[server,'serverNode@127.0.0.1',[0,Value,0,0]]);
-        259->spawn(server,graphDraw,[server,'serverNode@127.0.0.1',[0,0,Value,0]]);
-        260->spawn(server,graphDraw,[server,'serverNode@127.0.0.1',[0,0,0,Value]]);
+        257-> spawn(server,graphDraw,[server,'serverNode@127.0.0.1',Value,1]);
+        258->spawn(server,graphDraw,[server,'serverNode@127.0.0.1',Value,2]);
+        259->spawn(server,graphDraw,[server,'serverNode@127.0.0.1',Value,3]);
+        260->spawn(server,graphDraw,[server,'serverNode@127.0.0.1',Value,4]);
         _->1
       end,
 
