@@ -22,7 +22,7 @@ In this branch we will present a full distributed SNN that works with two comput
    
    In the folder of [Image processing](Image processing) you can see the relevant python files.
    
-   ![alt text](Images/image processing.png)
+   ![alt text](Images/image%20processing.png)
    
 ## Results
   After we tested our network we got results that show that we indeed identify between X/O:
