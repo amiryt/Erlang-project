@@ -49,9 +49,9 @@ digraph G {
     rp1 -> x2;
     x1 -> a12;
     x1 -> a22;
-    rp1 -> p1
-    rp1 -> p2
-    rp1 -> p3
+    rp1 -> p1;
+    rp1 -> p2;
+    rp1 -> p3;
     rp1 -> x3;
     x1 -> a32;
     x1 -> a42;

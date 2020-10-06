@@ -10,7 +10,7 @@
 -author("amiryt").
 
 %% gen_server callbacks
--export([start/3, test/0, start_output_layer/0, output_requests/3, manager_finish/1, active_input_layer/1, change_input_layer/1]).
+-export([start/3, test/1, start_output_layer/0, output_requests/3, manager_finish/1, active_input_layer/1, change_input_layer/1]).
 -record(neurons, {input_layer = 256, output_layer = 4}).
 
 start(CurrentNumber, NumberComputers, OutputComputer_Address) ->
@@ -43,7 +43,7 @@ start(CurrentNumber, NumberComputers, OutputComputer_Address) ->
     _ -> Old_neurons = ets:tab2list(neuronEts),
       L = [{exit(element(2, X), kill), exit(element(3, X), kill)} || X <- Old_neurons],
       if
-        length(L) =/= 0 -> io:format("Restart the network~n")
+        length(L) =/= 0 -> io:format("Restart the layer~n")
       end,
       ets:delete(neuronEts),
       ets:new(neuronEts, [ordered_set, named_table])
@@ -84,7 +84,7 @@ start_output_layer() ->
     _ -> Old_neurons = ets:tab2list(neuronOutputEts),
       L = [{exit(element(2, X), kill), exit(element(3, X), kill)} || X <- Old_neurons],
       if
-        length(L) =/= 0 -> io:format("Restart the network~n")
+        length(L) =/= 0 -> io:format("Restart the layer~n")
       end,
       ets:delete(neuronOutputEts),
       ets:new(neuronOutputEts, [ordered_set, named_table])
@@ -123,8 +123,10 @@ computer_neurons(NowComp, Start, Total, NumComputers, WorkMap) ->
 
 
 %% For testing a local file
-test() ->
-  Values = get_file_contents("train_more6.txt"),
+%% @doc  Receives: File - The location of the file we want to read
+%%                Read the local file text and translate it for currents
+test(File) ->
+  Values = get_file_contents(File),
   Clean_List = [remove("\n", X) || X <- Values],
   New_List = [[[Y] || Y <- X] || X <- Clean_List],
   [list_to_numbers(X) || X <- New_List].
