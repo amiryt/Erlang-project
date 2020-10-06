@@ -10,7 +10,7 @@
 -author("amiryt").
 
 %% gen_server callbacks
--export([test/0, start/2, active_input_layer/1, change_input_layer/1]).
+-export([test/0, start_output_layer/0, output_requests/3, manager_finish/1, startLayersChat/2, start/2, active_input_layer/1, change_input_layer/1]).
 -record(neurons, {input_layer = 256, output_layer = 4}).
 
 start(CurrentNumber, NumberComputers) ->
@@ -40,7 +40,11 @@ start(CurrentNumber, NumberComputers) ->
 %%  initiate_layer(1, In, ParaMap, neuronEts), % Input layer - 5 neurons
   initiate_layer(Start, End, ParaMap, neuronEts), % Input layer
 %%  Only here we have connection for the output layer
-  start_output_layer(),
+%%   For testing
+%%  Layer = sprintf("layer~p", [CurrentNumber]),
+%%  startLayersChat('output@127.0.0.1', Layer),
+
+%%  start_output_layer(),
 %%  if
 %%%%    TODO: Do this in other computer (output computer) only once!!!!
 %%    CurrentNumber == 1 -> initiate_layer(In + 1, In + Out, ParaMap, neuronEts); % Output layer - 4 neurons
@@ -62,24 +66,24 @@ start(CurrentNumber, NumberComputers) ->
 %%  backup_weights(1, In + 1, Weights_for_layer, weightsEts), % Save the weights in separate ets to have a backup of them in case we will need
 
 %%  Until here it's the start of the layer, after checking the rest would be deleted!
-  %%  TODO: Delete this - and put in separate function
   initiate_weights(Start, In, End + 1, In + Out, weightsEts, neuronEts), % Setting the weights by sending them to the neurons in the output layer
 %%  initiate_weights(1, In, In + 1, In + Out, weightsEts, neuronEts), % Setting the weights by sending them to the neurons in the output layer
 %%  TODO: Delete this - and put in separate function
-
-
 %%  I supposed to be [[1,2,3], [4,5,6], ....]
-  I = test(),
-
+%%  I = test(),
 %%  change_input_layer(In, ParaMap),
-  active_input_layer(I),
+%%  active_input_layer(I),
   bye.
 
 
+%% Output Layer side
+%% net_kernel:start([marvin, shortnames]).
+%% erlang:set_cookie(node(), dummy).
 start_output_layer() ->
   Neurons = #neurons{},
   In = element(2, Neurons),
   Out = element(3, Neurons),
+  ets:new(neuronOutputEts, [ordered_set, named_table]), % For backup the settings of the neuron
 %%  Self = self(),
 %%  TODO: Put one of those every time we want to change weighs/start program/change parameters/....
 %%  Pid_Manager = spawn(fun() ->
@@ -94,7 +98,21 @@ start_output_layer() ->
                 maps:put(vth, 0.0205,
                   maps:put(v_spike, 0.5,
                     maps:put(i_app, 0, maps:new()))))))))),
-  initiate_layer(In + 1, In + Out, ParaMap, neuronEts). % Output layer - 4 neurons.
+  initiate_layer(In + 1, In + Out, ParaMap, neuronOutputEts). % Output layer - 4 neurons
+
+%% Local side
+%% @doc  Receives: Address - The address of the remote node 'name@<localhost>'
+%%                            Layer_Name - The name of the layer we work on (layer1)
+%%                Starts communication between the layer and the output layer
+startLayersChat(Address, Layer_Name) ->
+  put(remoteNode, Address),%% In order to use it later
+%%  net_kernel:connect_node(remoteNode),
+  case whereis(Layer_Name) of
+    undefined -> spawn(fun() ->
+      rpc:call(Address, ?MODULE, start_output_layer, []),%% Node: Address, Module: This module, Function: call, Args: Message - Activate "call" in remote machine
+      register(Layer_Name, self()) end); %% Save the Pid of the local host layer process
+    _ -> io:format("You already started a connection with output layer~n")
+  end.
 
 
 %% @doc  Receives: NowComp - The number of the computer we now work on
@@ -130,7 +148,7 @@ test() ->
 %%  {ok, PyPID} = python:start([{python_path, "conv.py"}, {python, "python"}]),
 %%  io:fwrite("convolution in progress !!!!!!! ~n", []),%% todo: easy to call server by node and Pid name
 %%  T = python:call(PyPID, conv, getImageTraining, ["image1"]), %%todo: we need to draw for a time
-  Values = get_file_contents("train_more5.txt"),
+  Values = get_file_contents("train_more6.txt"),
   Clean_List = [remove("\n", X) || X <- Values],
   New_List = [[[Y] || Y <- X] || X <- Clean_List],
   [list_to_numbers(X) || X <- New_List].
@@ -195,17 +213,18 @@ initiate_layer(StartPoint, N, ParaMap, EtsName) ->
 %%TODO: Change here to tl(I) if the current for every neuron aren't the same!!!
 change_data(Input_tuple, I) ->
   Self = self(),
-%%  Out = element(3, #neurons{}),
+  Out = element(3, #neurons{}),
+  {_, {Start, End}} = hd(ets:lookup(computerEts, ets:first(computerEts))),
 %%  Here we need to look at the neurons in the output layer
 %%  TODO: Take the part of the manager pid and put it in the output computer
-%%  Pid_Manager = spawn(fun() ->
-%%    countNeuronsLatch(Out, Self) end), % This is pid responsible to make sure that the functions were finished
+  Pid_Manager = spawn(fun() ->
+    countNeuronsLatch(End - Start + 1, Self) end), % This is pid responsible to make sure that the functions were finished
 %%  In case of falling of one of the neurons (len(I) != len(input neurons))
   I_New = if
             length(I) > length(Input_tuple) -> lists:sublist(I, 1, length(Input_tuple)); % Case when neuron is down
             true -> I
           end,
-  send_data(Input_tuple, I_New, Self).
+  send_data(Input_tuple, I_New, Pid_Manager).
 send_data([], _, _) ->
 %%  io:format("All information passed the input layer~n"),
   receive
@@ -226,7 +245,8 @@ parameters_change(Input_tuple, {Start, End}, ParaMap) ->
   Self = self(),
 %%  In = element(2, #neurons{}),
   Pid_Manager = spawn(fun() ->
-    countNeuronsLatch(End - Start, Self) end), % This is pid responsible to make sure that the functions were finished
+    countNeuronsLatch(End - Start + 1, Self) end), % This is pid responsible to make sure that the functions were finished
+%%    countNeuronsLatch(End - Start, Self) end), % This is pid responsible to make sure that the functions were finished
 %%  Pid_Manager = spawn(fun() ->
 %%    countNeuronsLatch(In, Self) end), % This is pid responsible to make sure that the functions were finished
   send_parameters(Input_tuple, ParaMap, Pid_Manager).
@@ -264,10 +284,14 @@ actions_neuron(Neuron_Number) ->
       io:format("Changing weights for neuron~p~n", [Neuron_Number]),
       neuron:change_weights(Weights, Manager_Pid, Neuron_Number);
 %%    Output computer side
-    {maximal_amount, Manager_Pid, Value} ->
+    {maximal_amount, {Manager_Pid, LocalNode}, Value, Output_Manager_Pid} ->
 %%      TODO: From here send values outside
       io:format("Output neuron~p max is ~p~n", [Neuron_Number, Value]),
-      Manager_Pid ! {neuron_finished}; % In order to stay in the loop of receiving orders
+%%      rpc:call(node(), ?MODULE, manager_finish, [Output_Manager_Pid]);
+      Output_Manager_Pid ! {neuron_finished}; % Tell the manager pid of the output layer we finished
+%%      rpc:call(LocalNode, ?MODULE, manager_finish, [Manager_Pid]);
+%%      Manager_Pid ! {neuron_finished}; % In order to stay in the loop of receiving orders
+%%  Local side
     {spikes_from_neuron, Main_Pid, Spike_trains} -> % The current received from the neuron
 %%      Lateral Inhibition
       Train_Temp = transpose(Spike_trains),
@@ -276,17 +300,19 @@ actions_neuron(Neuron_Number) ->
 %%      Spike_Train_New = Spike_trains,
       Num_Spikes = [lists:sum(X) || X <- Spike_Train_New],
       io:format("Neuron~p, number of spikes: ~p~n", [Neuron_Number, Num_Spikes]),
-      In = element(2, #neurons{}),
+      {_, {Start, End}} = hd(ets:lookup(computerEts, ets:first(computerEts))), % Since only one value would be in this ets, it's okay to take only the first
+      In = {Start, End},
       Out = element(3, #neurons{}),
 %%      Output_Numbers = lists:seq(In + 1, Out + In),
 %%      TODO: Add here support of neurons from output layer that are in different computer
 %%      Output_Info = [hd(ets:lookup(neuronEts, X)) || X <- Output_Numbers],
 %%      The manager pid is NOW located in the output computer
 %%      Main_Pid belongs to the layer computer
-      Manager_Pid = spawn(fun() ->
-        countNeuronsLatch(Out, Main_Pid) end), % This is pid responsible to make sure that the functions were finished
+%%      Manager_Pid = spawn(fun() ->
+%%        countNeuronsLatch(Out, Main_Pid) end), % This is pid responsible to make sure that the functions were finished
+      Manager_Pid = Main_Pid,
 %%      Here it's the part we send request for the output computer
-      output_requests(In, Num_Spikes, Manager_Pid),
+      request_output_layer(In, Num_Spikes, Manager_Pid),
       hey;
     {new_data, Main_Pid, {Neuron_Number, I}} ->
 %%      io:format("New Data~n"),
@@ -297,24 +323,68 @@ actions_neuron(Neuron_Number) ->
   actions_neuron(Neuron_Number). % In order to stay in the loop of receiving orders
 
 
+%% Local side
+%% @doc  Receives: Manager_Pid - The pid of the manager process in the layer
+%%                Sends him a message that we finished
+manager_finish(Manager_Pid) ->
+  Manager_Pid ! {neuron_finished}.
+
+
+%% Local side
 %% @doc  Receives: Output_Info - [{Number, Statem_Pid, Layer_Pid, ParaMap}, ..]
 %%                Input_Len - Number of input neurons
 %%                Num_Spikes - Number of spikes of a specific input neuron for all of his output neurons
-%%                Sends the output neurons the values
-output_requests(In, Num_Spikes, Layer_Manager_Pid) ->
+%%                Sends requests for the output layer neurons for the values
+request_output_layer(In, Num_Spikes, Layer_Manager_Pid) ->
+%%  Out = element(3, #neurons{}),
+%%  Output_Numbers = lists:seq(In + 1, Out + In)
+  LocalNode = node(),
+  Temp = 'output@DESKTOP-IJ74SAF',
+%%  rpc:call(Temp, ?MODULE, test_hello, [Temp]).%% Node: Address, Module: This module, Function: call, Args: Message - Activate "call" in remote machine
+  rpc:call(Temp, layer, output_requests, [In, Num_Spikes, {Layer_Manager_Pid, LocalNode}]).%% Node: Address, Module: This module, Function: call, Args: Message - Activate "call" in remote machine
+%%  output_requests(Output_Info, In, Num_Spikes, Layer_Manager_Pid).
+
+%%test_hello(T) ->
+%%  io:format("Hello I reached output ~p - my node is: ~p ~n", [T, node()]).
+
+
+%% Output layer side
+output_requests({Start, End}, Num_Spikes, Layer_Manager_Pid_Node) ->
+  In = element(2, #neurons{}),
   Out = element(3, #neurons{}),
   Output_Numbers = lists:seq(In + 1, Out + In),
-  Output_Info = [hd(ets:lookup(neuronEts, X)) || X <- Output_Numbers],
-  output_requests(Output_Info, In, Num_Spikes, Layer_Manager_Pid).
-output_requests([], _, [], _) ->
-  io:format("Finished sending output neurons~n");
-output_requests(Output_Info, Input_Len, Num_Spikes, Manager_Pid) ->
+  Output_Info = [hd(ets:lookup(neuronOutputEts, X)) || X <- Output_Numbers],
+  Self = self(),
+  Output_Manager_Pid = spawn(fun() ->
+%%    Testing!!! we put usually Out
+    countNeuronsLatch(Out, Self) end), % This is pid responsible to make sure that the functions in output layer were finished
+  output_requests(Output_Info, End - Start + 1, Num_Spikes, Layer_Manager_Pid_Node, Output_Manager_Pid).
+output_requests([], In, [], {Layer_Manager_Pid, LocalNode}, _) ->
+%%  TODO: Fix here
+%%  io:format("Finished sending output neurons ~p~n", [node()]),
+  receive
+    {finished_function} -> io:format("Finished sending output neurons ~p~n", [node()]),
+      send_manager(LocalNode, Layer_Manager_Pid, In)
+  after 5000 ->
+    exit(self(), kill)
+  end;
+output_requests(Output_Info, Input_Len, Num_Spikes, Layer_Manager_Pid_Node, Output_Manager_Pid) ->
   Neuron_Info = hd(Output_Info),
-  io:format("Layer(output_requests): Sending from to output neuron~p spikes: ~p~n", [element(1, Neuron_Info), hd(Num_Spikes)]),
-  neuron:determine_output(Input_Len, Manager_Pid, hd(Num_Spikes), element(1, Neuron_Info)),
+  io:format("Layer(output_requests): Sending to output neuron~p spikes: ~p~n", [element(1, Neuron_Info), hd(Num_Spikes)]),
+  neuron:determine_output(Input_Len, Layer_Manager_Pid_Node, hd(Num_Spikes), element(1, Neuron_Info), Output_Manager_Pid),
 %%  Weights_List = list_to_numbers(length(string:tokens(hd(Weights), "\t")), string:tokens(hd(Weights), "\t")), % Splits from the tab
-  output_requests(tl(Output_Info), Input_Len, tl(Num_Spikes), Manager_Pid).
+  output_requests(tl(Output_Info), Input_Len, tl(Num_Spikes), Layer_Manager_Pid_Node, Output_Manager_Pid).
 
+
+%% @doc  Receives: LocalNode - The node of the layer
+%%                Layer_Manager_Pid - The pid of the manager in the layer
+%%                In - Number of neurons in this layer
+%%                Sends the right amount of messages for the manager of that layer
+send_manager(_, _, 0) ->
+  finished;
+send_manager(LocalNode, Layer_Manager_Pid, In) ->
+  rpc:call(LocalNode, ?MODULE, manager_finish, [Layer_Manager_Pid]),
+  send_manager(LocalNode, Layer_Manager_Pid, In - 1).
 
 %% --------------------------------------------------------------------------------------
 %%                          WEIGHTS BACKUP FUNCTIONS
@@ -424,10 +494,10 @@ get_all_lines(File, Partial) ->
 %% @doc  Receives: Num - The number we want
 %%                Len - Number of times that "Num" would appear
 %%      Returns:  A list with the same elements Len times
-%%list_same(_, Finish) when (Finish == 0) ->
-%%  [];
-%%list_same(Num, Len) ->
-%%  [Num | list_same(Num, Len - 1)].
+list_same(_, Finish) when (Finish == 0) ->
+  [];
+list_same(Num, Len) ->
+  [Num | list_same(Num, Len - 1)].
 
 
 %% @doc Receives: List - List of strings
@@ -501,3 +571,10 @@ setFromMax(Max_Value, List, false) ->
            true -> false
          end,
   [hd(List) | setFromMax(Max_Value, tl(List), Flag)].
+
+
+%% @doc Receives: Format - The sentence
+%%                Args - The information we want to put in the sentence
+%%      Returns:  Returns atom of it
+sprintf(Format, Args) ->
+  list_to_atom(lists:flatten(io_lib:format(Format, Args))).

@@ -21,7 +21,7 @@
 -export([active/3, stop/3]).
 
 %% Events functions
--export([new_data/3, change_parameters/3, change_weights/3, determine_output/4, stop_neuron/1]).
+-export([new_data/3, change_parameters/3, change_weights/3, determine_output/5, stop_neuron/1]).
 
 -define(SERVER, ?MODULE).
 
@@ -101,16 +101,17 @@ state_name(_EventType, _EventContent, State = #neuron_state{}) ->
   {next_state, NextStateName, State}.
 
 %% Event of sending output
-active(cast, {output_path, Manager_Pid, Input_Len, Value}, State = #neuron_state{output_result = {Left, Max_Value}}) ->
+%% For call: cast <=> {call, Pid} & in the end [{reply, Pid, ok}]
+active({call, Pid}, {output_path, Layer_Manager_Pid_Node, Input_Len, Value, Output_Manager_Pid}, State = #neuron_state{output_result = {Left, Max_Value}}) ->
   io:format("Neuron(active): Event of output~n"),
   if
     Left == -1000 ->
+      io:format("Input length is: ~p~n", [Input_Len]),
       case Input_Len == 1 of % Only one neuron in the input layer, that means we need to send the value now
         true ->
           Temp_Left = Left,
           Temp_Max = Max_Value, % First time
-%%          TODO: Change every "neuron_pid" HERE to the output computer node and pid
-          State#neuron_state.neuron_pid ! {maximal_amount, Manager_Pid, Value};
+          State#neuron_state.neuron_pid ! {maximal_amount, Layer_Manager_Pid_Node, Value, Output_Manager_Pid};
         false ->
           Temp_Left = Input_Len - 1,
           Temp_Max = Value % First time
@@ -119,14 +120,19 @@ active(cast, {output_path, Manager_Pid, Input_Len, Value}, State = #neuron_state
       New_Max = Temp_Max;
     Left == 1 -> New_Left = -1000,
       New_Max = -1000, % Reset after we finish
-      State#neuron_state.neuron_pid ! {maximal_amount, Manager_Pid, Max_Value};
+%%      Handle the last compared value
+      New_Val = case Max_Value > Value of
+                  true -> Max_Value;
+                  false -> Value
+                end,
+      State#neuron_state.neuron_pid ! {maximal_amount, Layer_Manager_Pid_Node, New_Val, Output_Manager_Pid};
     Value > Max_Value -> New_Left = Left - 1,
       New_Max = Value; % New maximal amount of spikes
     true -> New_Left = Left - 1,
       New_Max = Max_Value % The previous amount of spikes was bigger
   end,
   io:format("Neuron Old: ~p New: ~p~n", [New_Max, Max_Value]),
-  {next_state, active, State#neuron_state{output_result = {New_Left, New_Max}}};
+  {next_state, active, State#neuron_state{output_result = {New_Left, New_Max}}, [{reply, Pid, ok}]};
 
 %% Event of changing weights
 active(cast, {change_weights, Manager_Pid, User_Weights}, State = #neuron_state{}) ->
@@ -207,8 +213,8 @@ change_parameters(Parameters, Manager_Pid, Neuron_Number) ->
   gen_statem:cast(gen_Name("neuron", Neuron_Number), {change_parameters, Manager_Pid, Parameters}).
 change_weights(Weights, Manager_Pid, Neuron_Number) ->
   gen_statem:cast(gen_Name("neuron", Neuron_Number), {change_weights, Manager_Pid, Weights}).
-determine_output(Input_Len, Manager_Pid, Value, Neuron_Number) ->
-  gen_statem:cast(gen_Name("neuron", Neuron_Number), {output_path, Manager_Pid, Input_Len, Value}).
+determine_output(Input_Len, Layer_Manager_Pid_Node, Value, Neuron_Number, Output_Manager_Pid) ->
+  gen_statem:call(gen_Name("neuron", Neuron_Number), {output_path, Layer_Manager_Pid_Node, Input_Len, Value, Output_Manager_Pid}).
 stop_neuron(Neuron_Number) -> gen_statem:cast(gen_Name("neuron", Neuron_Number), {stop}).
 
 %% @private
