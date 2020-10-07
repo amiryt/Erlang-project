@@ -168,10 +168,10 @@ monitorloop(Server,Gui,Snn,Graph)->
 
   flush(),
 
-  io:format("I (monitor waiting in the loop ~n", []),
+  io:format("I resmonitor waiting in the loop ~n", []),
   receive
     {gui,terminate}->
-      io:format(" monitor: terminating the application ~n", []);
+      io:format(" resmonitor: terminating the application ~n", []);
 
 
 
@@ -206,7 +206,7 @@ monitorloop(Server,Gui,Snn,Graph)->
 
 
 
-    {'DOWN', _, process, Server, Res}-> io:format("I (monitor) My server ~p died (~p)~n", [Server, Res]),
+    {'DOWN', _, process, Server, Res}-> io:format("I (res monitor) My server ~p died (~p)~n", [Server, Res]),
       {graph,'graphNode@127.0.0.1'}!{monitor,exit},
       {snn,'snnNode@127.0.0.1'}!{monitor,exit},
       {gui,'guiNode@127.0.0.1'}!{monitor,exit},
@@ -214,7 +214,7 @@ monitorloop(Server,Gui,Snn,Graph)->
       flush(),%% to clear the mail box
       start();
 
-    {'DOWN', _, process, Gui, Res}-> io:format("I (monitor) My gui ~p died (~p)~n", [Gui, Res]),
+    {'DOWN', _, process, Gui, Res}-> io:format("I (res monitor) My gui ~p died (~p)~n", [Gui, Res]),
       {graph,'graphNode@127.0.0.1'}!{monitor,exit},
       {snn,'snnNode@127.0.0.1'}!{monitor,exit},
       spawn(server,stop,[server,'serverNode@127.0.0.1']),
@@ -222,7 +222,7 @@ monitorloop(Server,Gui,Snn,Graph)->
       flush(),%% to clear the mail box
       start();%% sending stop message to server
 
-    {'DOWN', _, process, Snn, Res}-> io:format("I (monitor) My Snn ~p died (~p)~n", [Snn, Res]),
+    {'DOWN', _, process, Snn, Res}-> io:format("I (res monitor) My Snn ~p died (~p)~n", [Snn, Res]),
       {graph,'graphNode@127.0.0.1'}!{monitor,exit},
       {gui,'guiNode@127.0.0.1'}!{monitor,exit},
       spawn(server,stop,[server,'serverNode@127.0.0.1']),
@@ -230,7 +230,7 @@ monitorloop(Server,Gui,Snn,Graph)->
       flush(),%% to clear the mail box
       start();
 
-    {'DOWN', _, process, Graph, Res}-> io:format("I (monitor) My Graph ~p died (~p)~n", [Graph, Res]),
+    {'DOWN', _, process, Graph, Res}-> io:format("I (res monitor) My Graph ~p died (~p)~n", [Graph, Res]),
       {snn,'snnNode@127.0.0.1'}!{monitor,exit},
       {gui,'guiNode@127.0.0.1'}!{monitor,exit},
       spawn(server,stop,[server,'serverNode@127.0.0.1']),
