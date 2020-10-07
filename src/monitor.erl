@@ -10,80 +10,11 @@
 -author("kyan").
 
 %% API
--export([start/0,restart/4,restart1/4]).
-
-restart(Server,Gui,Snn,Graph)->
-  Pid = spawn(monitor, restart1,[Server,Gui,Snn,Graph]),
-  register(monitor,Pid),
-  Pid
-  .
-restart1(Server,Gui,Snn,Graph) ->
-  ResMonitor=rpc:call('resmonitorNode@127.0.0.1',erlang,whereis,[resmonitor]),
-  io:format("restarting the monitor ~n", []),
-  ReferenceServer = erlang:monitor(process, Server),
-  ReferenceGui = erlang:monitor(process, Gui),
-  ReferenceSnn = erlang:monitor(process, Snn),
-  ReferenceGraph = erlang:monitor(process, Graph),
-  ReferenceResMonitor=erlang:monitor(process, ResMonitor),
-  restartloop(Server,Gui,Snn,Graph,ResMonitor).
-
-
-restartloop(Server,Gui,Snn,Graph,ResMonitor)->
-
-
-  flush(),%% todo : what if two computer is dead!
-
-  io:format("I (monitor waiting in the loop ~n", []),
-  receive
-    {gui,terminate}->
-      io:format(" monitor: terminating the application ~n", []);
+-export([start/0]).
 
 
 
 
-    {'DOWN', _, process, ResMonitor, _}-> io:format("I (monitor) My resMobitor ~p died (~p)~n", [ResMonitor, normal]),
-      restartloop(Server,Gui,Snn,Graph,restartResMonitor(Server,Gui,Snn,Graph));%% no need for restart all the application
-
-
-
-
-
-
-    {'DOWN', _, process, Server, _}-> io:format("I (monitor) My server ~p died (~p)~n", [Server, normal]),
-      {graph,'graphNode@127.0.0.1'}!{monitor,exit},
-      {snn,'snnNode@127.0.0.1'}!{monitor,exit},
-      {gui,'guiNode@127.0.0.1'}!{monitor,exit},
-      io:format("restarting the application ~n", []),
-      start();
-
-    {'DOWN', _, process, Gui, _}-> io:format("I (monitor) My gui ~p died (~p)~n", [Gui, normal]),
-      {graph,'graphNode@127.0.0.1'}!{monitor,exit},
-      {snn,'snnNode@127.0.0.1'}!{monitor,exit},
-      spawn(server,stop,[server,'serverNode@127.0.0.1']),
-      io:format("restarting the application ~n", []),
-      start();%% sending stop message to server
-
-    {'DOWN', _, process, Snn, _}-> io:format("I (monitor) My Snn ~p died (~p)~n", [Snn, normal]),
-      {graph,'graphNode@127.0.0.1'}!{monitor,exit},
-      {gui,'guiNode@127.0.0.1'}!{monitor,exit},
-      spawn(server,stop,[server,'serverNode@127.0.0.1']),
-      io:format("restarting the application ~n", []),
-      start();
-
-    {'DOWN', _, process, Graph, _}-> io:format("I (monitor) My Graph ~p died (~p)~n", [Graph, normal]),
-      {snn,'snnNode@127.0.0.1'}!{monitor,exit},
-      {gui,'guiNode@127.0.0.1'}!{monitor,exit},
-      spawn(server,stop,[server,'serverNode@127.0.0.1']),
-      io:format("restarting the application ~n", []),
-      start();
-
-
-
-    Rec->io:format("what the fuck is here:   ~p ~n", [Rec])
-
-
-  end
-  .
 start() ->
 
 
@@ -186,7 +117,7 @@ start() ->
 
   {resmonitor,'resmonitorNode@127.0.0.1'}!{monitor,Server,Gui,Snn,Graph},
 
-  io:fwrite("Gui is : ~p~n", [Server]),
+  io:fwrite("Server is : ~p~n", [Server]),
   io:fwrite("Gui is : ~p~n", [Gui]),
   io:fwrite("Snn is : ~p~n", [Snn]),
   io:fwrite("Graph is : ~p~n", [Graph]),
@@ -194,10 +125,10 @@ start() ->
 
 
 
-  ReferenceServer = erlang:monitor(process, Server),
-  ReferenceGui = erlang:monitor(process, Gui),
-  ReferenceSnn = erlang:monitor(process, Snn),
-  ReferenceGraph = erlang:monitor(process, Graph),
+  _ = erlang:monitor(process, Server),
+  _ = erlang:monitor(process, Gui),
+  _ = erlang:monitor(process, Snn),
+  _ = erlang:monitor(process, Graph),
   erlang:monitor(process, ResMonitor),
 
   monitorloop(Server,Gui,Snn,Graph,ResMonitor)
@@ -210,7 +141,8 @@ monitorloop(Server,Gui,Snn,Graph,ResMonitor)->
   io:format("I (monitor waiting in the loop ~n", []),
   receive
     {gui,terminate}->
-      io:format(" monitor: terminating the application ~n", []);
+      io:format(" monitor: terminating the application ~n", []);%% todo: exit witht the gui need to terminate the application
+
 
 
 
@@ -240,18 +172,16 @@ monitorloop(Server,Gui,Snn,Graph,ResMonitor)->
 
   %% terminating the other process
 
-    {'DOWN', _, process, ResMonitor, _}->
-     io:format("I (monitor) My resMobitor ~p died (~p)~n", [ResMonitor, normal]),
-      NewResMonitor=restartResMonitor(Server,Gui,Snn,Graph),
-     monitorloop(Server,Gui,Snn,Graph,NewResMonitor),%% no need for restart
-     _=erlang:monitor(process, NewResMonitor);
+    {'DOWN', _, process, ResMonitor, Res}->
+     io:format("I (monitor) My resMobitor ~p died (~p)~n", [ResMonitor, Res]),
+     monitorloop(Server,Gui,Snn,Graph,ResMonitor);
 
 
 
 
 
 
-    {'DOWN', _, process, Server, _}-> io:format("I (monitor) My server ~p died (~p)~n", [Server, normal]),
+    {'DOWN', _, process, Server, Res}-> io:format("I (monitor) My server ~p died (~p)~n", [Server, Res]),
       {graph,'graphNode@127.0.0.1'}!{monitor,exit},
       {snn,'snnNode@127.0.0.1'}!{monitor,exit},
       {gui,'guiNode@127.0.0.1'}!{monitor,exit},
@@ -259,7 +189,7 @@ monitorloop(Server,Gui,Snn,Graph,ResMonitor)->
       flush(),%% to clear the mail box
       start();
 
-    {'DOWN', _, process, Gui, _}-> io:format("I (monitor) My gui ~p died (~p)~n", [Gui, normal]),
+    {'DOWN', _, process, Gui, Res}-> io:format("I (monitor) My gui ~p died (~p)~n", [Gui, Res]),
       {graph,'graphNode@127.0.0.1'}!{monitor,exit},
       {snn,'snnNode@127.0.0.1'}!{monitor,exit},
       spawn(server,stop,[server,'serverNode@127.0.0.1']),
@@ -267,7 +197,7 @@ monitorloop(Server,Gui,Snn,Graph,ResMonitor)->
       flush(),%% to clear the mail box
       start();%% sending stop message to server
 
-    {'DOWN', _, process, Snn, _}-> io:format("I (monitor) My Snn ~p died (~p)~n", [Snn, normal]),
+    {'DOWN', _, process, Snn, Res}-> io:format("I (monitor) My Snn ~p died (~p)~n", [Snn, Res]),
       {graph,'graphNode@127.0.0.1'}!{monitor,exit},
       {gui,'guiNode@127.0.0.1'}!{monitor,exit},
       spawn(server,stop,[server,'serverNode@127.0.0.1']),
@@ -275,7 +205,7 @@ monitorloop(Server,Gui,Snn,Graph,ResMonitor)->
       flush(),%% to clear the mail box
       start();
 
-    {'DOWN', _, process, Graph, _}-> io:format("I (monitor) My Graph ~p died (~p)~n", [Graph, normal]),
+    {'DOWN', _, process, Graph, Res}-> io:format("I (monitor) My Graph ~p died (~p)~n", [Graph, Res]),
       {snn,'snnNode@127.0.0.1'}!{monitor,exit},
       {gui,'guiNode@127.0.0.1'}!{monitor,exit},
       spawn(server,stop,[server,'serverNode@127.0.0.1']),
@@ -296,26 +226,6 @@ monitorloop(Server,Gui,Snn,Graph,ResMonitor)->
 
 
 .
-
-
-restartResMonitor(Server,Gui,Snn,Graph)->
-  timer:sleep(1000),
-
-  case rpc:call('resmonitorNode@127.0.0.1', erlang, whereis, [resmonitor]) of
-    {badrpc,_}->io:format("you need to create resMonitor node ~n", []),
-    restartResMonitor(Server,Gui,Snn,Graph);
-
-    undefined->ResMonitor=rpc:call('resmonitorNode@127.0.0.1',resMonitor,init,[]),%% todo: need to change
-      {resmonitor,'resmonitorhNode@127.0.0.1'}!{Server,Gui,Snn,Graph}
-    ;
-
-
-    ResMonitor->ResMonitor
-
-
-  end
-
-  .
 
 
 flush() ->

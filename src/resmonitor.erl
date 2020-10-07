@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 05. Oct 2020 16:45
 %%%-------------------------------------------------------------------
--module(resMonitor).
+-module(resmonitor).
 -author("kyan").
 
 %% API
@@ -14,11 +14,55 @@
 
 
 init() ->
-  Pid = spawn(resMonitor, start,[1,1,1,1,1]),%% at first there is no pids
+  Pid = spawn(resmonitor, start,[1,1,1,1,1]),%% at first there is no pids default is ones
   register(resmonitor,Pid),
   Pid
 
 .
+
+
+
+
+start(Server,Gui,Snn,Graph,MainMonitor)->
+
+%%
+%%  put(server,Server),
+%%  put(gui,Gui),
+%%  put(snn,Snn),
+%%  put(graph,Graph),
+%%  put(mainMonitor,MainMonitor),
+  flush(),
+  io:fwrite("reciveing messages ~n", []),
+  receive
+    {'DOWN', _, process, MainMonitor, Res}-> io:fwrite("I (resMonitor) My monitor ~p died (~p)~n", [MainMonitor, Res]),
+      %NewMonitor=restartMainMonitor(Server,Gui,Snn,Graph),
+      ReferenceServer = erlang:monitor(process, Server),
+      ReferenceGui = erlang:monitor(process, Gui),
+      ReferenceSnn = erlang:monitor(process, Snn),
+      ReferenceGraph = erlang:monitor(process, Graph),
+      monitorloop(Server,Gui,Snn,Graph);%% todo: im the monitor now
+    {monitor,NewServer,NewGui,NewSnn,NewGraph}->
+      NewMainMonitor=rpc:call('monitorNode@127.0.0.1',erlang,whereis,[monitor]),
+      io:fwrite("recived message from main monitor ~p ~n", [NewMainMonitor]),
+
+      MainMonitorref=erlang:monitor(process, NewMainMonitor),
+      start(NewServer,NewGui,NewSnn,NewGraph,NewMainMonitor);
+    Msg->io:fwrite("recived message from ??? ~p ~n", [Msg])
+
+  end
+
+  .
+
+
+flush() ->
+  receive
+    _ -> flush()
+  after
+    0 -> ok
+  end.
+
+
+
 
 
 start() ->
@@ -26,20 +70,6 @@ start() ->
 
   flush(),%% todo : what if two computer is dead!
   timer:sleep(2000),
-
-  case rpc:call('resmonitorNode@127.0.0.1', erlang, whereis, [resmonitor]) of
-    {badrpc,_}->io:format("you need to create resmonitor node ~n", []),
-      start();
-
-    undefined->
-      io:format("you need to create resmonitor process ~n", []),
-      start();
-
-
-    _->ok
-
-
-  end,
 
   case rpc:call('serverNode@127.0.0.1', erlang, whereis, [server]) of
     {badrpc,_}->io:format("you need to create server node ~n", []),
@@ -128,67 +158,12 @@ start() ->
 
 
 
-  ReferenceServer = erlang:monitor(process, Server),
-  ReferenceGui = erlang:monitor(process, Gui),
-  ReferenceSnn = erlang:monitor(process, Snn),
-  ReferenceGraph = erlang:monitor(process, Graph),
+  _ = erlang:monitor(process, Server),
+  _ = erlang:monitor(process, Gui),
+  _ = erlang:monitor(process, Snn),
+  _ = erlang:monitor(process, Graph),
 
   monitorloop(Server,Gui,Snn,Graph).
-
-start(Server,Gui,Snn,Graph,MainMonitor)->
-
-%%
-%%  put(server,Server),
-%%  put(gui,Gui),
-%%  put(snn,Snn),
-%%  put(graph,Graph),
-%%  put(mainMonitor,MainMonitor),
-  flush(),
-  io:fwrite("reciveing messages ~n", []),
-  receive
-    {'DOWN', _, process, MainMonitor, _}-> io:fwrite("I (resMonitor) My monitor ~p died (~p)~n", [MainMonitor, normal]),
-      %NewMonitor=restartMainMonitor(Server,Gui,Snn,Graph),
-      ReferenceServer = erlang:monitor(process, Server),
-      ReferenceGui = erlang:monitor(process, Gui),
-      ReferenceSnn = erlang:monitor(process, Snn),
-      ReferenceGraph = erlang:monitor(process, Graph),
-      monitorloop(Server,Gui,Snn,Graph);%% todo: im the monitor now
-    {monitor,NewServer,NewGui,NewSnn,NewGraph}->
-      NewMainMonitor=rpc:call('monitorNode@127.0.0.1',erlang,whereis,[monitor]),
-      io:fwrite("recived message from main monitor ~p ~n", [NewMainMonitor]),
-
-      MainMonitorref=erlang:monitor(process, NewMainMonitor),
-      start(NewServer,NewGui,NewSnn,NewGraph,NewMainMonitor);
-    Msg->io:fwrite("recived message from mzdzvfzdfsdfain monitor ~p ~n", [Msg])
-
-  end
-
-  .
-restartMainMonitor(Server,Gui,Snn,Graph)->
-  timer:sleep(1000),
-  case rpc:call('monitorNode@127.0.0.1', erlang, whereis, [monitor]) of
-    {badrpc,_}->io:fwrite("you need to create monitor node ~n", []),
-      restartMainMonitor(Server,Gui,Snn,Graph);
-
-    undefined->NewMainMonitor=rpc:call('monitorNode@127.0.0.1',monitor,restart,[Server,Gui,Snn,Graph]),
-      NewMainMonitor;
-
-
-    Monitor->Monitor
-
-
-  end
-
-
-  .
-flush() ->
-  receive
-    _ -> flush()
-  after
-    0 -> ok
-  end.
-
-
 monitorloop(Server,Gui,Snn,Graph)->
 
   flush(),
@@ -231,9 +206,7 @@ monitorloop(Server,Gui,Snn,Graph)->
 
 
 
-
-
-    {'DOWN', _, process, Server, _}-> io:format("I (monitor) My server ~p died (~p)~n", [Server, normal]),
+    {'DOWN', _, process, Server, Res}-> io:format("I (monitor) My server ~p died (~p)~n", [Server, Res]),
       {graph,'graphNode@127.0.0.1'}!{monitor,exit},
       {snn,'snnNode@127.0.0.1'}!{monitor,exit},
       {gui,'guiNode@127.0.0.1'}!{monitor,exit},
@@ -241,7 +214,7 @@ monitorloop(Server,Gui,Snn,Graph)->
       flush(),%% to clear the mail box
       start();
 
-    {'DOWN', _, process, Gui, _}-> io:format("I (monitor) My gui ~p died (~p)~n", [Gui, normal]),
+    {'DOWN', _, process, Gui, Res}-> io:format("I (monitor) My gui ~p died (~p)~n", [Gui, Res]),
       {graph,'graphNode@127.0.0.1'}!{monitor,exit},
       {snn,'snnNode@127.0.0.1'}!{monitor,exit},
       spawn(server,stop,[server,'serverNode@127.0.0.1']),
@@ -249,7 +222,7 @@ monitorloop(Server,Gui,Snn,Graph)->
       flush(),%% to clear the mail box
       start();%% sending stop message to server
 
-    {'DOWN', _, process, Snn, _}-> io:format("I (monitor) My Snn ~p died (~p)~n", [Snn, normal]),
+    {'DOWN', _, process, Snn, Res}-> io:format("I (monitor) My Snn ~p died (~p)~n", [Snn, Res]),
       {graph,'graphNode@127.0.0.1'}!{monitor,exit},
       {gui,'guiNode@127.0.0.1'}!{monitor,exit},
       spawn(server,stop,[server,'serverNode@127.0.0.1']),
@@ -257,7 +230,7 @@ monitorloop(Server,Gui,Snn,Graph)->
       flush(),%% to clear the mail box
       start();
 
-    {'DOWN', _, process, Graph, _}-> io:format("I (monitor) My Graph ~p died (~p)~n", [Graph, normal]),
+    {'DOWN', _, process, Graph, Res}-> io:format("I (monitor) My Graph ~p died (~p)~n", [Graph, Res]),
       {snn,'snnNode@127.0.0.1'}!{monitor,exit},
       {gui,'guiNode@127.0.0.1'}!{monitor,exit},
       spawn(server,stop,[server,'serverNode@127.0.0.1']),
