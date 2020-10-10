@@ -10,76 +10,41 @@
 -author("kyan").
 
 %% API
--export([init/0,draw/1,start/0]).
+-export([init/0, draw/1, start/0]).
+
+init() ->
+  Pid = spawn(graphs, start, []),
+  register(graph, Pid).
 
 
-init()->
+start() ->
+  graphHanlder().
 
 
-  Pid = spawn(graphs, start,[]),
-  register(graph,Pid)
-
-
-
-.
-
-start()->
-
-
-
-  graphHanlder()
-.
-
-draw(Nm)->
-
-  {ok, PyPID} = python:start([{python_path, "test.py"},{python, "python3"}]),
-  Result=python:call(PyPID, test, print, [Nm]), %%todo: we need to draw for a time
+draw(Nm) ->
+  {ok, PyPID} = python:start([{python_path, "test.py"}, {python, "python3"}]),
+  Result = python:call(PyPID, test, print, [Nm]),
   case Result of
-    1->1;%% todo: send finished to the server
-    _->0%% todo : there is a problem neee dto fix it if there is no result
-  end
-
-.
+    1 -> 1;
+    _ -> 0
+  end.
 
 
-graphHanlder()->
-
-
-
+graphHanlder() ->
   receive
-
-  % a connection get the close_window signal
-  % and sends this message to the server
-
-
-  %% recieveing mesagews
-  %% io:fwrite("recieved message from server to start drawing ~n", []),%% todo: easy to call server by node and Pid namefrom out server
-    {server,draw,Nm}->
-      io:fwrite("recieved message from server to start drawing ~n", []),%% todo: easy to call server by node and Pid name
+    {server, draw, Nm} ->
+      io:fwrite("Recieved message from server to start drawing ~n", []),
       io:fwrite("drawing...... ~n", []),
-      Res=draw(Nm),
-      case Res of%% todo:: is blocking way to draw you need to exit hte window to move
-        1-> io:fwrite("end drawing ........~n", []),
-          spawn(server,endTest,[server,'serverNode@127.0.0.1',1]);
-          %%spawn(server,endTest,[server,'serverNode@127.0.0.1',1]);
-        _->io:fwrite("the Result is is~p~n", [Res])
+      Res = draw(Nm),
+      case Res of
+        1 -> io:fwrite("Finished drawing ~n", []),
+          spawn(server, endTest, [server, 'serverNode@127.0.0.1', 1]);
+        _ -> io:fwrite("The Result we got is~p~n", [Res])
       end,
-
       graphHanlder();
 
-
-
-    {server,terminate}->%% todo!!!
+    {server, terminate} ->
       1;
 
-
-
-
-
-    _->1
-
-
-
-  end
-
-.
+    _ -> 1
+  end.

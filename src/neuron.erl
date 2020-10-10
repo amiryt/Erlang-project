@@ -12,7 +12,7 @@
 -behaviour(gen_statem).
 
 %% API
--export([start/0, start_link/4]).
+-export([start_link/4]).
 
 %% Callback functions
 -export([init/1, format_status/2, state_name/3, handle_event/4, terminate/3,
@@ -21,7 +21,7 @@
 -export([active/3, stop/3]).
 
 %% Events functions
--export([new_data/3, change_parameters/3, change_weights/3, determine_output/4, stop_neuron/1]).
+-export([new_data/3, change_parameters/3, change_weights/3, determine_output/5, stop_neuron/1]).
 
 -define(SERVER, ?MODULE).
 
@@ -101,52 +101,61 @@ state_name(_EventType, _EventContent, State = #neuron_state{}) ->
   {next_state, NextStateName, State}.
 
 %% Event of sending output
-active(cast, {output_path, Manager_Pid, Input_Len, Value}, State = #neuron_state{output_result = {Left, Max_Value}}) ->
-  io:format("Neuron(active): Event of output~n"),
+%% For call: cast <=> {call, Pid} & in the end [{reply, Pid, ok}]
+active({call, Pid}, {output_path, Layer_Manager_Pid_Node, Input_Len, Value, Output_Manager_Pid}, State = #neuron_state{output_result = {Left, Max_Value}}) ->
+  %%erlang:display("Neuron(active): Event of output~n"),
   if
     Left == -1000 ->
+     %% io:format("Input length is: ~p~n", [Input_Len]),
       case Input_Len == 1 of % Only one neuron in the input layer, that means we need to send the value now
-        true -> Temp_Left = Left,
+        true ->
+          Temp_Left = Left,
           Temp_Max = Max_Value, % First time
-          State#neuron_state.neuron_pid ! {maximal_amount, Manager_Pid, Value};
-        false -> Temp_Left = Input_Len - 1,
+          State#neuron_state.neuron_pid ! {maximal_amount, Layer_Manager_Pid_Node, Value, Output_Manager_Pid};
+        false ->
+          Temp_Left = Input_Len - 1,
           Temp_Max = Value % First time
       end,
       New_Left = Temp_Left,
       New_Max = Temp_Max;
     Left == 1 -> New_Left = -1000,
       New_Max = -1000, % Reset after we finish
-      State#neuron_state.neuron_pid ! {maximal_amount, Manager_Pid, Max_Value};
+%%      Handle the last compared value
+      New_Val = case Max_Value > Value of
+                  true -> Max_Value;
+                  false -> Value
+                end,
+      State#neuron_state.neuron_pid ! {maximal_amount, Layer_Manager_Pid_Node, New_Val, Output_Manager_Pid};
     Value > Max_Value -> New_Left = Left - 1,
       New_Max = Value; % New maximal amount of spikes
     true -> New_Left = Left - 1,
       New_Max = Max_Value % The previous amount of spikes was bigger
   end,
-  io:format("Neuron output Old: ~p New: ~p~n", [New_Max, Max_Value]),
-  {next_state, active, State#neuron_state{output_result = {New_Left, New_Max}}};
+  %%io:format("Neuron Old: ~p New: ~p~n", [New_Max, Max_Value]),
+  {next_state, active, State#neuron_state{output_result = {New_Left, New_Max}}, [{reply, Pid, ok}]};
 
 %% Event of changing weights
 active(cast, {change_weights, Manager_Pid, User_Weights}, State = #neuron_state{}) ->
   io:format("Neuron(active): Event of weights~n"),
 %%  back propagation function here
   New_Weights = User_Weights,
-  io:format("Old: ~p~n", [State#neuron_state.weights]),
-  io:format("New: ~p~n", [New_Weights]),
+ %% io:format("Old: ~p~n", [State#neuron_state.weights]),
+  %%io:format("New: ~p~n", [New_Weights]),
   Manager_Pid ! {neuron_finished}, % Inform the main process that this neuron finished the function
 %%  State#neuron_state.neuron_pid ! finished_setting_weights,
   {next_state, active, State#neuron_state{weights = New_Weights}};
 
 
 %% Event of new current
-active(cast, {new_data, Manager_Pid, I_input}, State = #neuron_state{neuron_pid = Neuron_Pid, weights = Weights}) ->
+active(cast, {new_data, Pid_Main, I_input}, State = #neuron_state{neuron_pid = Neuron_Pid, weights = Weights}) ->
   io:format("Neuron(active): Event of new data~n"),
   I_synapses = synapses(I_input, Weights), % The current depends on the current of all the other connected neurons and their weights
   Results = [lif(X, State#neuron_state.time_list, State, 0, []) || X <- I_synapses],
   Spike_trains = [returnFromElem(R, spike_train) || R <- Results],
   Vm = [lists:sublist(R, 1, findElemLocation(R, spike_train, 1) - 1) || R <- Results],
+%%  io:format("Vm neuron: ~p", [Vm]),
 %%  Manager_Pid ! {neuron_finished}, % Inform the main process that this neuron finished the function
-  Neuron_Pid ! {spikes_from_neuron, Manager_Pid, Spike_trains},
-  io:format("PM isss:::::!!::!:!:!::!:!:!:!!:!:!!: ~p~n",[Vm]),
+  Neuron_Pid ! {spikes_from_neuron, Pid_Main, Spike_trains},
   {next_state, active, State#neuron_state{vm = Vm}};
 
 %% Event of changing parameters
@@ -196,21 +205,16 @@ handle_event(_EventType, _EventContent, _StateName, State = #neuron_state{}) ->
   NextStateName = the_next_state_name,
   {next_state, NextStateName, State}.
 
-%%handle_common({call, From}, code_length, #{code := Code} = Data) ->
-%%  io:format("Hey~n"),
-%%  {keep_state, Data,
-%%    [{reply, From, length(Code)}]}.
 
 %% Layer functions for neuron
-%%call_length(Neuron_Number) -> gen_statem:call(gen_Name("neuron", Neuron_Number), {call, nothing}).
-new_data(I, Manager_Pid, Neuron_Number) ->
-  gen_statem:cast(gen_Name("neuron", Neuron_Number), {new_data, Manager_Pid, I}).
+new_data(I, Pid_Main, Neuron_Number) ->
+  gen_statem:cast(gen_Name("neuron", Neuron_Number), {new_data, Pid_Main, I}).
 change_parameters(Parameters, Manager_Pid, Neuron_Number) ->
   gen_statem:cast(gen_Name("neuron", Neuron_Number), {change_parameters, Manager_Pid, Parameters}).
 change_weights(Weights, Manager_Pid, Neuron_Number) ->
   gen_statem:cast(gen_Name("neuron", Neuron_Number), {change_weights, Manager_Pid, Weights}).
-determine_output(Input_Len, Manager_Pid, Value, Neuron_Number) ->
-  gen_statem:cast(gen_Name("neuron", Neuron_Number), {output_path, Manager_Pid, Input_Len, Value}).
+determine_output(Input_Len, Layer_Manager_Pid_Node, Value, Neuron_Number, Output_Manager_Pid) ->
+  gen_statem:call(gen_Name("neuron", Neuron_Number), {output_path, Layer_Manager_Pid_Node, Input_Len, Value, Output_Manager_Pid}).
 stop_neuron(Neuron_Number) -> gen_statem:cast(gen_Name("neuron", Neuron_Number), {stop}).
 
 %% @private
@@ -230,37 +234,38 @@ code_change(_OldVsn, StateName, State = #neuron_state{}, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
-start() ->
-%%  Dt = 0.125,
-%%  L = arange(0, 50 + Dt, Dt),
-%%  L1 = mapMult([1,2,3], [4,5,6]),
-  ParaMap =
-    maps:put(dt, 0.125,
-      maps:put(simulation_time, 50,
-        maps:put(t_rest, 0,
-          maps:put(rm, 1,
-            maps:put(cm, 10,
-              maps:put(tau_ref, 4,
-                maps:put(vth, 1,
-                  maps:put(v_spike, 0.5,
-                    maps:put(i_app, 0, maps:new()))))))))),
-  {ok, Pid} = neuron:start_link(1, regular, nothing, ParaMap),
-  sys:trace(Pid, true),
-  Length = math:ceil(maps:get(simulation_time, ParaMap) / maps:get(dt, ParaMap)),
-  I = list_same(1.5, Length + 1),
-%%  neuron:change_weights([1, 20, 30], 1),
-%%  neuron:new_data(I, 1),
-%%  neuron:determine_output(3, 10, 1),
-%%  neuron:determine_output(3, 20, 1),
-%%  neuron:determine_output(3, 30, 1),
-  neuron:stop_neuron(1),
-  hey.
+%%start() ->
+%%%%  Dt = 0.125,
+%%%%  L = arange(0, 50 + Dt, Dt),
+%%%%  L1 = mapMult([1,2,3], [4,5,6]),
+%%  ParaMap =
+%%    maps:put(dt, 0.125,
+%%      maps:put(simulation_time, 50,
+%%        maps:put(t_rest, 0,
+%%          maps:put(rm, 1,
+%%            maps:put(cm, 10,
+%%              maps:put(tau_ref, 4,
+%%                maps:put(vth, 1,
+%%                  maps:put(v_spike, 0.5,
+%%                    maps:put(i_app, 0, maps:new()))))))))),
+%%  {ok, Pid} = neuron:start_link(1, regular, nothing, ParaMap),
+%%  sys:trace(Pid, true),
+%%  Length = math:ceil(maps:get(simulation_time, ParaMap) / maps:get(dt, ParaMap)),
+%%  I = list_same(1.5, Length + 1),
+%%%%  neuron:change_weights([1, 20, 30], 1),
+%%%%  neuron:new_data(I, 1),
+%%%%  neuron:determine_output(3, 10, 1),
+%%%%  neuron:determine_output(3, 20, 1),
+%%%%  neuron:determine_output(3, 30, 1),
+%%  neuron:stop_neuron(1),
+%%  hey.
 
 %% @doc  Receives: Str - String
 %%                          Neuron_Number - The number of the neuron
 %%            Returns:  An atom with the appropriate name
 gen_Name(Str, Neuron_Number) ->
   list_to_atom(lists:flatten(io_lib:format("~s~B", [Str, Neuron_Number]))).
+
 
 %% TODO: Create the update weights function
 %% @doc  Receives: t - Time difference between presynaptic and postsynaptic spikes
@@ -304,6 +309,7 @@ lif(I_synapse, Time_List, State, Prev_Vm, Spike_train) ->
   end,
   [Vm_result | lif(tl(I_synapse), tl(Time_List), State#neuron_state{t_rest = T_rest_new}, Vm_result, [Spike | Spike_train])].
 
+
 %% @doc  Receives: Start - The number we start
 %%                End - The number we end
 %%                Dt - The size of the jumps
@@ -315,6 +321,7 @@ arangeLoop(_, _, Finish) when (Finish == 0) ->
   [];
 arangeLoop(Start, Dt, Rounds) ->
   [Start | arangeLoop(Start + Dt, Dt, Rounds - 1)].
+
 
 %% @doc  Receives: Num - The number we want
 %%                Len - Number of times that "Num" would appear
@@ -335,28 +342,6 @@ synapses(I, Weights) ->
   [I_synapse | synapses(I, tl(Weights))].
 
 
-%% @doc  Receives: L1 - List 1 [1, 2, 3]
-%%                         Arg2 - List 2 [4, 5, 6] / number 4
-%%      Returns:  A list of their mult [4, 10, 18] / mult by number [4, 8, 12]
-mapMult(List1, []) ->
-  lists:map(fun(X) -> (X) end, List1);
-mapMult(List1, Args2) when (is_list(Args2) and is_number(Args2)) ->
-  lists:map(fun(X) -> (X * Args2) end, List1);
-mapMult(List1, Args2) when (is_list(Args2) and is_list(Args2)) ->
-  mapMultLoop(List1, Args2, length(List1), length(Args2)).
-mapMultLoop(_, _, List1length, Args2length) when List1length =/= Args2length ->
-  lenError;
-mapMultLoop(List1, Args2, List1length, Args2length) when List1length =:= Args2length ->
-  lists:map(fun(X) -> hd(X) * hd(tl(X)) end, listsToCouple(List1, Args2, [])).
-
-%% @doc  Receives: L1 - List 1 [1, 2, 3]
-%%                             L2 - List 2 [4, 5, 6]
-%%      Returns:  A list of couples [[1, 4], [2, 5], [3, 6]]
-listsToCouple([], [], Acc) ->
-  lists:reverse(Acc);
-listsToCouple([H1 | T1], [H2 | T2], Acc) ->
-  listsToCouple(T1, T2, [[H1 | [H2]] | Acc]).
-
 %% @doc  Receives: List - A List of numbers
 %%                          Elem - The element we want to find in the list
 %%      Returns:  A list of what comes after Elem
@@ -366,6 +351,7 @@ returnFromElem([H | T], Elem) when Elem == H ->
   T;
 returnFromElem([_ | Rest], Elem) ->
   returnFromElem(Rest, Elem).
+
 
 %% @doc  Receives: List - A List of numbers
 %%                          Elem - The element we want to find in the list

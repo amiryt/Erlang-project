@@ -7,31 +7,21 @@
 init()->
   Pid = spawn(wxd, start,[]),
   register(gui,Pid),
-
-  put(servernode,'serverNode@127.0.0.1')
-  .
-
+  put(servernode,'serverNode@127.0.0.1').
 
 
 start() ->
   State = make_window(),
   put(isactive,0),
-
   put(servernode,'serverNode@127.0.0.1'),
-  loop (State), %% need to make a spawn function to recieve from the server
-
+  loop (State),
   wx:destroy().
+
 
 make_window() ->
   Server = wx:new(),
   Frame = wxFrame:new(Server, -1, "SNN", [{size,{400, 600}}]),
   Panel  = wxPanel:new(Frame),
-
-
-
-
-
-
   MainSizer = wxBoxSizer:new(?wxVERTICAL),
   TextSizer = wxStaticBoxSizer:new(?wxVERTICAL, Panel,
     [{label, "How to use"}]),
@@ -42,14 +32,12 @@ make_window() ->
   BitmapSizer2 = wxStaticBoxSizer:new(?wxHORIZONTAL, Panel,
     [{label, "image number 3"}]),
 
-
   %% Create static texts
   Texts = [wxStaticText:new(Panel, 1, "info", []),
     wxStaticText:new(Panel, 2, "info",
       [{style, ?wxALIGN_CENTER bor ?wxST_NO_AUTORESIZE}]),
     wxStaticText:new(Panel, 3, "info",
       [{style, ?wxALIGN_RIGHT bor ?wxST_NO_AUTORESIZE}])],
-
 
   Image = wxImage:new("0.jpg", []),
   Bitmap = wxBitmap:new(wxImage:scale(Image,
@@ -65,7 +53,6 @@ make_window() ->
     [{quality, ?wxIMAGE_QUALITY_HIGH}])),
   StaticBitmap1 = wxStaticBitmap:new(Panel, 2, Bitmap1),
 
-
   Image2 = wxImage:new("2.jpg", []),
   Bitmap2 = wxBitmap:new(wxImage:scale(Image2,
     round(wxImage:getWidth(Image2)*4),
@@ -73,13 +60,9 @@ make_window() ->
     [{quality, ?wxIMAGE_QUALITY_HIGH}])),
   StaticBitmap2 = wxStaticBitmap:new(Panel, 3, Bitmap2),
 
-
-
   %% Add to sizers
   [wxSizer:add(TextSizer, Text, [{flag, ?wxEXPAND bor ?wxALL},
     {border, 10}]) || Text <- Texts],
-
-
 
   wxSizer:add(BitmapSizer, StaticBitmap, []),
   wxSizer:add(BitmapSizer1, StaticBitmap1, []),
@@ -89,66 +72,17 @@ make_window() ->
   wxSizer:add(MainSizer, BitmapSizer1, []),
   wxSizer:add(MainSizer, BitmapSizer2, []),
 
-
-
-
-
-
-%% create widgets
-%% the order entered here does not control appearance
+%% Create widgets
+%% The order entered here does not control appearance
   T1001 = wxTextCtrl:new(Panel, 1001,[{value, "1"}]), %set default value
   ST2001 = wxStaticText:new(Panel, 2001,"Output Area",[]),
   ST2002 = wxStaticText:new(Panel, 2001,"Chose input image",[]),
   B101  = wxButton:new(Panel, 101, [{label, "&Send"}]),%% 101 is the id
-  %%B104  = wxButton:new(Panel, 104, [{label, "&IMG2"}]),%% 101 is the id
-  %%B105  = wxButton:new(Panel, 105, [{label, "&SIMG3"}]),%% 101 is the id
-  %%B106  = wxButton:new(Panel, 106, [{label, "&SIMG4"}]),%% 101 is the id
-
-
-
-%%  B107  = wxButton:new(Panel, 107, [{label, "&IMG5"}]),%% 101 is the id
   B102  = wxButton:new(Panel, ?wxID_EXIT, [{label, "E&xit"}]),%% ?wxId_EXIT
 
-
-
-
-
-
-%%You can create sizers before or after the widgets that will go into them, but
-%%the widgets have to exist before they are added to sizer.
   OuterSizer  = wxBoxSizer:new(?wxHORIZONTAL),
-
   InputSizer  = wxBoxSizer:new(?wxVERTICAL),%%% distance from up of the frame
   ButtonSizer = wxBoxSizer:new(?wxHORIZONTAL),
-
-
-
-
-  OuterSizer1  = wxBoxSizer:new(?wxHORIZONTAL),
-  MainSizer1   = wxBoxSizer:new(?wxVERTICAL),
-  InputSizer1 = wxBoxSizer:new(?wxVERTICAL),%%% distance from up of the frame
-  ImageSizer = wxBoxSizer:new(?wxHORIZONTAL),
-
-  %% HORIZON left and wirte
-  %% VERT UP and DOWN
-
-
-%% Note that the widget is added using the VARIABLE, not the ID.
-%% The order they are added here controls appearance.
-
-
-
-
- %% wxSizer:add(ImageSizer, StaticBitmap, []),
-  %%wxSizer:add(ImageSizer, StaticBitmap1, []),
-  %%wxSizer:add(ImageSizer, StaticBitmap2, []),
-
-  %%wxSizer:add(InputSizer1, ImageSizer, []),
-
-
-
-
-
 
   wxSizer:add(InputSizer, ST2002, []),
   wxSizer:add(InputSizer, 40, 0, []),
@@ -171,15 +105,10 @@ make_window() ->
   wxSizer:addSpacer(OuterSizer, 20), % spacer
   wxSizer:add(OuterSizer, MainSizer, []),
 
-
-%% Now 'set' OuterSizer into the Panel
-
-
   wxPanel:setSizer(Panel, OuterSizer),
-
   wxFrame:show(Frame),
 
-% create two listeners
+% Create two listeners
   wxFrame:connect( Frame, close_window),
   wxPanel:connect(Panel, command_button_clicked),
 
@@ -187,47 +116,32 @@ make_window() ->
   {Frame, T1001, ST2001}.
 
 loop(State) ->
-  {Frame, T1001, ST2001}  = State,  % break State back down into its components
-  io:format("--waiting in the loop--~n", []), % optional, feedback to the shell
-
+  {Frame, T1001, ST2001}  = State,
+  io:format("------ Waiting in the loop ------~n", []),
   receive
-
-  % a connection get the close_window signal
-  % and sends this message to the server
-
-
     {server,finished}->
       put(isactive,0),
-      wxStaticText:setLabel(ST2001, "you can inter"),
-      io:fwrite("recieved message finished message ~n", []),%% todo: easy to call server by node and Pid name
+      wxStaticText:setLabel(ST2001, "Enter an option"),
+      io:fwrite("Recieved message finished message ~n", []),
       loop(State);
 
-    %% recieveing mesagews from out server
+    %% Receiving messages from out server
     {server,Msg}->
-      io:fwrite("recieved message ~n", []),%% todo: easy to call server by node and Pid name
+      io:fwrite("Recieved message ~n", []),
       loop(State);
-
-    %%%%
-
-
 
     #wx{event=#wxClose{}} ->
-      io:format("~p Closing window ~n",[self()]), %optional, goes to shell
-      %now we use the reference to Frame
-      wxWindow:destroy(Frame),  %closes the window
-      ok;  % we exit the loop
+      io:format("~p Closing window ~n",[self()]),
+      wxWindow:destroy(Frame),
+      ok;
 
     #wx{id = ?wxID_EXIT, event=#wxCommand{type = command_button_clicked} } ->
-      %%     {wx, ?wxID_EXIT, _,_,_} ->
-      %this message is sent when the exit button (ID 102) is clicked
-      %the other fields in the tuple are not important to us.
-      io:format("~p Closing window ~n",[self()]), %optional, goes to shell
+      io:format("~p Closing window ~n",[self()]),
       wxWindow:destroy(Frame),
-      ok;  % we exit the loop
+      ok;
 
     #wx{id = 101, event=#wxCommand{type = command_button_clicked}} ->
-      %this message is sent when the Countdown button (ID 101) is clicked
-      T1001_val = wxTextCtrl:getValue(T1001),%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%getting the value from the box
+      T1001_val = wxTextCtrl:getValue(T1001),
       case is_valid_list_to_integer(T1001_val) of
         true ->
           case get(isactive) of
@@ -237,40 +151,34 @@ loop(State) ->
             1->put(isactive,1),
               spawn(server,testImage,[server,'serverNode@127.0.0.1',0]),
               wxStaticText:setLabel(ST2001, "The network in progress please wait"),
-              io:fwrite("send a signal of  the picture num One~n", []);%% todo : send to convolution and stop receiveing commands
-              %%loop(State);
-            2->put(isactive,1),
+              io:fwrite("Sends a signal of the picture num One~n", []);
 
+            2->put(isactive,1),
               spawn(server,testImage,[server,'serverNode@127.0.0.1',1]),
               wxStaticText:setLabel(ST2001, "The network in progress please wait"),
-              io:fwrite("send a signal of  the picture num Two~n", []);
+              io:fwrite("Sends a signal of the picture num Two~n", []);
+
             3->put(isactive,1),
               spawn(server,testImage,[server,'serverNode@127.0.0.1',2]),
               wxStaticText:setLabel(ST2001, "The network in progress please wait"),
-              io:fwrite("send a signal of  the picture num Three~n", []);%%%......
-            _-> wxStaticText:setLabel(ST2001, "Invalid input, Please chose again")
+              io:fwrite("Sends a signal of the picture num Three~n", []);
+            _-> wxStaticText:setLabel(ST2001, "Invalid input, Please choose again")
           end;
-         %% T1001_int = list_to_integer(T1001_val),
-          %%cntdwn(T1001_int, ST2001);  %letting cntdwn/2 fill in the textbox
 
           _->wxStaticText:setLabel(ST2001, "The network in progress please wait")
           end;
+
         _ ->
-          wxStaticText:setLabel(ST2001, "Only integers are allowed")
+          wxStaticText:setLabel(ST2001, "Only integers are allowed!")
       end,
-
-
       loop(State);
 
     Msg ->
-      %everything else ends up here
-      io:format("loop default triggered: Got ~n ~p ~n", [Msg]),
+      io:format("Loop default triggered: Got ~n ~p ~n", [Msg]),
       loop(State)
-
   end.
 
 cntdwn(N,StaticText) when N > 0 ->
-  % assumes N is an integer
   io:format("~w~n", [N]),
   OutputStr = integer_to_list(N),
   wxStaticText:setLabel(StaticText, OutputStr),
@@ -285,11 +193,12 @@ cntdwn(_, StaticText) ->
   wxStaticText:setLabel(StaticText, OutputStr),
   ok.
 
+
 is_valid_list_to_integer(Input) ->
   try list_to_integer(Input) of
     _An_integer -> true
   catch
-    error: _Reason -> false  %Reason is badarg
+    error: _Reason -> false
   end.
 
 
