@@ -32,7 +32,9 @@ graphHanlder() ->
 
 
   %% recieveing messages
-
+    {monitor, terminate} ->
+      erlang:display("monitor terminating the system"),
+      ok;
     {monitor, exit} ->
       ok;%%io:fwrite("recieved exit message I graph  ~n", []);
 
@@ -216,8 +218,10 @@ loop(State) ->
 
   % a connection get the close_window signal
   % and sends this message to the server
-
-
+    {monitor, terminate} ->
+      erlang:display("monitor terminating the system"),
+    wxWindow:destroy(Frame),  %closes the window
+      ok;
     {server, finished} ->
       put(isactive, 0),
       wxStaticText:setLabel(ST2001, "you can inter"),
@@ -231,16 +235,17 @@ loop(State) ->
 
 
     #wx{event = #wxClose{}} ->
-      %%:format("~p Closing window ~n",[self()]), %optional, goes to shell
-      %now we use the reference to Frame
-      wxWindow:destroy(Frame),  %closes the window
-      ok;  % we exit the loop
+      %% need to terminate the application
+      spawn(server, terminateApp, [server, 'serverNode@127.0.0.1', 1]),
+        %closes the window
+      loop(State);%% then wait for the monitor termination
+        % we exit the loop
 
     #wx{id = ?wxID_EXIT, event = #wxCommand{type = command_button_clicked}} ->
+      spawn(server, terminateApp, [server, 'serverNode@127.0.0.1', 1]),
+      %closes the window
+      loop(State),
 
-      wxStaticText:setLabel(ST2001, "closing the application!,"),
-      timer:sleep(2000),%% todo : wait to send message to the monitor to end the application {gui,terminate}
-      wxWindow:destroy(Frame),
       ok;  % we exit the loop
 
     #wx{id = 100, event = #wxCommand{type = command_button_clicked}} ->
@@ -252,7 +257,7 @@ loop(State) ->
       loop(State);
 
     #wx{id = 101, event = #wxCommand{type = command_button_clicked}} ->
-      %this message is sent when the Countdown button (ID 101) is clicked
+
       T1001_val = wxTextCtrl:getValue(T1001),
       case is_valid_list_to_integer(T1001_val) of
         true ->
