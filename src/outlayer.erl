@@ -33,8 +33,13 @@ start() ->
   layer:start_output_layer(),
 
   receive
-
+    {monitor, terminate}->
+      erlang:display("monitor terminating the system"),
+      layer:killoutputlayer(),
+      ok
+  ;
     {monitor, exit} ->%% terminated
+      erlang:display("monitor terminating the Snn ntwork output layer"),
       layer:killoutputlayer(),
       ok;
 
