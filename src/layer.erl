@@ -69,8 +69,23 @@ start(CurrentNumber, NumberComputers, OutputComputer_Address) ->
   initiate_weights(Start, In, End + 1, In + Out, weightsEts, neuronEts), % Setting the weights by sending them to the neurons in the output layer
 %%  I = test(),
 %%  active_input_layer(I),
+%%  TODO: TESTING!!!!!
+%%  NeuronMap = createNeuronsMap(1, End - Start + 1),
+%%  L1 = registered(),
+%%  P = include_str("neuron", [atom_to_list(X) || X <- L1]),
+%%  P_temp = ["neuron4"],
+%%  Died = remove_all(P_temp, NeuronMap),
+  exit(erlang:whereis(neuron105), kill),
+  security_check(End - Start + 1, 1),
   bye.
 
+
+%% @doc Receives: Start, End - Total number of neurons in this layer
+%%      Returns:  A map of M neurons keys {neuron1 => 1, ...}
+createNeuronsMap(Start, End) ->
+  R = lists:seq(Start, End),
+  List = [{lists:flatten(io_lib:format("neuron~B", [X])), X} || X <- R],
+  maps:from_list(List).
 
 %% Output Layer side
 %% net_kernel:start([marvin, shortnames]).
@@ -79,6 +94,7 @@ start_output_layer() ->
   Neurons = #neurons{},
   In = element(2, Neurons),
   Out = element(3, Neurons),
+  security_check(Out + In, In + 1),
   case ets:info(neuronOutputEts) of % For backup the settings of the neuron
     undefined -> ets:new(neuronOutputEts, [ordered_set, named_table]);
     _ -> Old_neurons = ets:tab2list(neuronOutputEts),
@@ -136,18 +152,52 @@ test(File) ->
 %%                Sends the information arrived from the user's picture to the input layer
 %%                This information would come from the spike train that would be made with receptive_field
 active_input_layer(I_List) ->
+%%  TODO: From here make sure that the layers have exactly the rights amount of neurons
   {_, {Start, End}} = hd(ets:lookup(computerEts, ets:first(computerEts))), % Since only one value would be in this ets, it's okay to take only the first
-%%  TODO: Receptive field should send the correct currents, but we can still do like that:
+  security_check(End, Start),
   I = lists:sublist(I_List, Start, End - Start + 1),
   Input_Numbers = lists:seq(Start, End),
   Input_Pids = [{X, element(3, hd(ets:lookup(neuronEts, X)))} || X <- Input_Numbers],
   change_data(Input_Pids, I).
 
 
+%% @doc  Receives:  End, Start - Number of neurons in this layer
+%%                            Node - The node that we want to check for killed neurons
+%%                Builds the missing neurons if needed
+security_check(End, Start) ->
+  ParaMap =
+    maps:put(dt, 0.125,
+      maps:put(simulation_time, 150,
+        maps:put(t_rest, 0,
+          maps:put(rm, 1,
+            maps:put(cm, 10,
+              maps:put(tau_ref, 4,
+                maps:put(vth, 0.0205,
+                  maps:put(v_spike, 0.5,
+                    maps:put(i_app, 0, maps:new()))))))))),
+  NeuronMap = createNeuronsMap(1, End - Start + 1),
+  Processes_List = [atom_to_list(X) || X <- registered()],
+  Neurons_List = include_str("neuron", Processes_List),
+  Died = remove_all(Neurons_List, NeuronMap),
+%%  We need first to kill the statem processes
+  case ets:info(neuronEts) of % To check if we are in the input layer or output layer
+    undefined -> Values = [hd(ets:lookup(neuronOutputEts, element(2, X))) || X <- Died],
+      [exit(element(3, X), kill) || X <- Values]; % Means we are in the output computer
+    _ -> Values = [hd(ets:lookup(neuronEts, element(2, X))) || X <- Died],
+      [exit(element(3, X), kill) || X <- Values] % Means we are in the input computer
+  end,
+  case length(Died) =/= 0 of
+    true -> [create_neuron(regular, element(2, X), ParaMap) || X <- Died];
+    false -> okay
+  end,
+  bye.
+
+
 %% @doc  Receives:   ParaMap - The map of parameters (can be changed)
 %%                Changes the parameters of the neurons in the input layer
 change_input_layer(ParaMap) ->
   {_, {Start, End}} = hd(ets:lookup(computerEts, ets:first(computerEts))), % Since only one value would be in this ets, it's okay to take only the first
+  security_check(End, Start),
   Input_Numbers = lists:seq(Start, End),
   Input_Pids = [{X, element(3, hd(ets:lookup(neuronEts, X)))} || X <- Input_Numbers],
   parameters_change(Input_Pids, {Start, End}, ParaMap).
@@ -231,11 +281,19 @@ send_parameters(Input_tuple, ParaMap, Pid_Manager) ->
 %%                ParaMap - The map of the parameters
 %%      Returns:  A tuple: {Neuron_number, Neuron_pid, Parameters_map}
 create_neuron(Start_Option, Number, ParaMap) ->
-  Pid_Neuron = spawn(fun() -> actions_neuron(Number) end), % This is the Pid of the neuron
-  Pid_Neuron ! {create, {Number, self()}, Start_Option, ParaMap},
-  receive
-    Info -> Info
+  case ets:lookup(neuronEts, Number) of
+    [] -> Pid_Neuron = spawn(fun() -> actions_neuron(Number) end), % This is the Pid of the neuron
+      Pid_Neuron ! {create, {Number, self()}, Start_Option, ParaMap},
+      receive
+        Info -> Info
+      end; % The neuron hasn't created or fell!!
+    _ -> io:format("Neuron~p is already created~n", [Number])
   end.
+%%  Pid_Neuron = spawn(fun() -> actions_neuron(Number) end), % This is the Pid of the neuron
+%%  Pid_Neuron ! {create, {Number, self()}, Start_Option, ParaMap},
+%%  receive
+%%    Info -> Info
+%%  end.
 
 %% @doc  Receives: Neuron_Number - The number of the neuron
 %%      This function is response on the connections between each neuron to the system (which are the layers)
@@ -510,3 +568,29 @@ setFromMax(Max_Value, List, false) ->
            true -> false
          end,
   [hd(List) | setFromMax(Max_Value, tl(List), Flag)].
+
+
+%% @doc  Receives:  Str - The string we looking for in the elements
+%%                List - The list of elements
+%%                A list of strings with that string
+include_str(_, []) ->
+  [];
+include_str(Str, List) when length(hd(List)) < length(Str) -> % Means this can't include that sub-string
+  include_str(Str, tl(List));
+include_str(Str, List) ->
+  Process = hd(List),
+  SubString = lists:sublist(Process, 1, length(Str)),
+  case Str == SubString of
+    true -> [Process | include_str(Str, tl(List))];
+    false -> include_str(Str, tl(List))
+  end.
+
+
+%% @doc Receives: Keys_List - A list with all the keys we want to delete from the map
+%%                           Map - The map we want to discard values from
+%%      Returns:  A list (from the map) with the remaining values
+remove_all([], Map) ->
+  maps:to_list(Map);
+remove_all(Keys_List, Map) ->
+  New_Map = maps:remove(hd(Keys_List), Map),
+  remove_all(tl(Keys_List), New_Map).
