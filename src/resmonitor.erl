@@ -50,7 +50,7 @@ start(Server, Gui, Snn, Graph, MainMonitor, OutLayer,DefStartMonitor) ->
           Active = rpc:call('monitorNode@127.0.0.1', monitor, getActive, []),
           io:fwrite(" changed the active monitor ~n", []),
           _ = erlang:monitor(process, Active),
-          start(Server, Gui, Snn, Graph, MainMonitor, OutLayer,DefStartMonitor)
+          start(Server, Gui, Snn, Graph, Active, OutLayer,DefStartMonitor)
 
 %%        ActiveMonitor=rpc:call('monitorNode@127.0.0.1', monitor, getActive, []),
 %%        _ = erlang:monitor(process, NewMainMonitor),
