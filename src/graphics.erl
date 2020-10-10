@@ -6,7 +6,7 @@
 -export([init/0, startGraph/0, startGui/0]).
 
 
-%% Initiating the graphs handler and the wxWidgets gui
+%% Initiating the graphs handler and the wxWidgets GUI
 init() ->
   PidGui = spawn(graphics, startGui, []),
   register(gui, PidGui),
@@ -14,13 +14,12 @@ init() ->
   register(graph, PidGraph),
   {PidGui, PidGraph}.
 
-
 startGraph() ->
   put(recivedmessages, 0),
   graphHanlder().
 
 
-%% Receive messages to draw graphs
+%% Receives messages to draw graphs
 graphHanlder() ->
   receive
   %% Receiving messages
@@ -40,6 +39,7 @@ graphHanlder() ->
         4 -> put(neuron4, Nm);
         _ -> nothingtodo
       end,
+
       case get(recivedmessages) of
         4 -> put(recivedmessages, 0),
           Res = draw(get(neuron1), get(neuron2), get(neuron3), get(neuron4)),
@@ -49,13 +49,14 @@ graphHanlder() ->
             _ -> ok
           end;
         _ -> nothingtodo
+
       end,
       graphHanlder();
     _ -> 1
   end.
 
 
-%% Starting the GUI
+%% Starts the GUI
 startGui() ->
   State = make_window(),
   put(isactive, 0),
@@ -70,6 +71,7 @@ make_window() ->
   Panel = wxPanel:new(Frame),
   wxPanel:setBackgroundStyle(Panel, ?wxBG_STYLE_CUSTOM),
   wxFrame:setBackgroundColour(Frame, {100, 0, 0}),
+
   MainSizer = wxBoxSizer:new(?wxVERTICAL),
   TextSizer = wxStaticBoxSizer:new(?wxVERTICAL, Panel,
     [{label, "How to use: "}]),
@@ -80,7 +82,7 @@ make_window() ->
   BitmapSizer2 = wxStaticBoxSizer:new(?wxHORIZONTAL, Panel,
     [{label, "image number 3"}]),
 
-  %% Create static texts
+  %% Creates static texts
   Texts = [wxStaticText:new(Panel, 1, "info", []),
     wxStaticText:new(Panel, 2, "info",
       [{style, ?wxALIGN_CENTER bor ?wxST_NO_AUTORESIZE}]),
@@ -111,7 +113,6 @@ make_window() ->
   %% Add to sizers
   [wxSizer:add(TextSizer, Text, [{flag, ?wxEXPAND bor ?wxALL},
     {border, 10}]) || Text <- Texts],
-
   wxSizer:add(BitmapSizer, StaticBitmap, []),
   wxSizer:add(BitmapSizer1, StaticBitmap1, []),
   wxSizer:add(BitmapSizer2, StaticBitmap2, []),
@@ -124,10 +125,10 @@ make_window() ->
 %% The order entered here does not control appearance
   T1001 = wxTextCtrl:new(Panel, 1001, [{value, "1"}]), %set default value
   ST2001 = wxStaticText:new(Panel, 2001, "Output Area", []),
-  ST2002 = wxStaticText:new(Panel, 2001, "Chose input image", []),
+  ST2002 = wxStaticText:new(Panel, 2001, "Choose input image", []),
   B100 = wxButton:new(Panel, 100, [{label, "Draw"}]),%% 101 is the id
-  B101 = wxButton:new(Panel, 101, [{label, "&Send"}]),%% 101 is the id
-  B102 = wxButton:new(Panel, ?wxID_EXIT, [{label, "E&xit"}]),%% ?wxId_EXIT
+  B101 = wxButton:new(Panel, 101, [{label, "Send"}]),%% 101 is the id
+  B102 = wxButton:new(Panel, ?wxID_EXIT, [{label, "Exit"}]),%% ?wxId_EXIT
   OuterSizer = wxBoxSizer:new(?wxHORIZONTAL),
   InputSizer = wxBoxSizer:new(?wxVERTICAL),%%% distance from up of the frame
   ButtonSizer = wxBoxSizer:new(?wxHORIZONTAL),
@@ -136,73 +137,65 @@ make_window() ->
   wxSizer:add(InputSizer, ST2002, []),
   wxSizer:add(InputSizer, 40, 0, []),
 
-  wxSizer:addSpacer(MainSizer, 10),  % Spacer
+  wxSizer:addSpacer(MainSizer, 10),  %spacer
   wxSizer:add(InputSizer, T1001, []),
-  wxSizer:addSpacer(MainSizer, 5),  % Spacer
+  wxSizer:addSpacer(MainSizer, 5),  %spacer
 
-  wxSizer:addSpacer(MainSizer, 10),  % Spacer
+  wxSizer:addSpacer(MainSizer, 10),  %spacer
   wxSizer:add(MainSizer, InputSizer, []),
-  wxSizer:addSpacer(MainSizer, 5),  % Spacer
+  wxSizer:addSpacer(MainSizer, 5),  %spacer
 
   wxSizer:add(MainSizer, ST2001, []),
-  wxSizer:addSpacer(MainSizer, 10),  % Spacer
+  wxSizer:addSpacer(MainSizer, 10),  %spacer
   wxSizer:add(ButtonSizerD, B100, []),
   wxSizer:add(MainSizer, ButtonSizerD, []),
   wxSizer:add(ButtonSizer, B101, []),
   wxSizer:add(ButtonSizer, B102, []),
   wxSizer:add(MainSizer, ButtonSizer, []),
 
-  wxSizer:addSpacer(OuterSizer, 20),  % Spacer
+  wxSizer:addSpacer(OuterSizer, 20), % spacer
   wxSizer:add(OuterSizer, MainSizer, []),
-
-%% Now 'set' OuterSizer into the Panel
   wxPanel:setSizer(Panel, OuterSizer),
   wxFrame:show(Frame),
 
-% Create two listeners
+% create two listeners
   wxFrame:connect(Frame, close_window),
   wxPanel:connect(Panel, command_button_clicked),
 
-%%  Returning value, which is stored in State
+%% Returning value, which is stored in State
   {Frame, T1001, ST2001}.
 
-
 loop(State) ->
-  {Frame, T1001, ST2001} = State,  % Breaks State back down into its components
-
+  {Frame, T1001, ST2001} = State,
   receive
-  % A connection get the close_window signal and sends this message to the server
     {monitor, terminate} ->
-      erlang:display("monitor terminating the system"),
+      erlang:display("Monitor terminating the system~n"),
       wxWindow:destroy(Frame),  %closes the window
       ok;
 
     {server, finished} ->
       put(isactive, 0),
-      wxStaticText:setLabel(ST2001, "you can inter"),
+      wxStaticText:setLabel(ST2001, "Enter an option"),
       loop(State);
 
-  %% Receiving messages from out server
     {monitor, exit} -> ok;
 
     #wx{event = #wxClose{}} ->
       spawn(server, terminateApp, [server, 'serverNode@127.0.0.1', 1]),
-      % Closes the window
-      loop(State); % Then wait for the monitor termination
-  %% Exit the loop
+      %% Closes the window
+      loop(State);
 
     #wx{id = ?wxID_EXIT, event = #wxCommand{type = command_button_clicked}} ->
       spawn(server, terminateApp, [server, 'serverNode@127.0.0.1', 1]),
-      % Closes the window
+      %% Closes the window
       loop(State),
       ok;
-%%  Exit the loop
 
     #wx{id = 100, event = #wxCommand{type = command_button_clicked}} ->
       wxStaticText:setLabel(ST2001, "DRAWING: at the end press save, then exit!"),
       {ok, PyPID} = python:start([{python_path, "conv.py"}, {python, "python3"}]),
       python:call(PyPID, paint, draw, []),
-      wxStaticText:setLabel(ST2001, " choose option number 4, to send the drawed Image"),
+      wxStaticText:setLabel(ST2001, "Choose option number 4 to send the drawed Image"),
       loop(State);
 
     #wx{id = 101, event = #wxCommand{type = command_button_clicked}} ->
@@ -210,6 +203,7 @@ loop(State) ->
       case is_valid_list_to_integer(T1001_val) of
         true ->
           case get(isactive) of
+
             0 ->
               case list_to_integer(T1001_val) of
                 1 -> put(isactive, 1),
@@ -228,15 +222,16 @@ loop(State) ->
                   spawn(server, testImage, [server, 'serverNode@127.0.0.1', conv1(3)]),
                   wxStaticText:setLabel(ST2001, "The network in progress please wait");
 
-                _ -> wxStaticText:setLabel(ST2001, "Invalid input, Please chose again")
+                _ -> wxStaticText:setLabel(ST2001, "Invalid input, Please choose again")
               end;
+
             _ -> wxStaticText:setLabel(ST2001, "The network in progress please wait")
           end;
         _ ->
-          wxStaticText:setLabel(ST2001, "Only integers are allowed")
+          wxStaticText:setLabel(ST2001, "Only integers are allowed!")
       end,
       loop(State);
-    _ -> ok
+    _-> ok
   end.
 
 
@@ -244,7 +239,7 @@ is_valid_list_to_integer(Input) ->
   try list_to_integer(Input) of
     _An_integer -> true
   catch
-    error: _Reason -> false  %Reason is badarg
+    error: _Reason -> false
   end.
 
 

@@ -12,9 +12,8 @@
 %% API
 -export([init/0, start/7, createdefmonitor/6, getActive/0, createdefStartmonitor/7]).
 
-
 init() ->
-  Pid = spawn(resmonitor, start, [1, 1, 1, 1, 1, 1, 1]),%% At the beginning there are no pids, default is ones
+  Pid = spawn(resmonitor, start, [1, 1, 1, 1, 1, 1, 1]),%% At the beginning, there are no pids default is ones
   register(resmonitor, Pid),
   Pid.
 
@@ -25,12 +24,12 @@ start(Server, Gui, Snn, Graph, MainMonitor, OutLayer, DefStartMonitor) ->
   flush(),
   io:fwrite("Reciveing messages ~n", []),
   receive
-  %% main monitor down the res monitor replaces it
-    {'DOWN', _, process, MainMonitor, Res} ->
 
+  %% mainMonitor down the res monitor replaces it
+    {'DOWN', _, process, MainMonitor, Res} ->
       case rpc:call('monitorNode@127.0.0.1', erlang, whereis, [stam]) of
         {badrpc, _} ->  %% main monitor computer (node) is down
-          io:fwrite("I (resMonitor) My monitor ~p died (~p)~n", [MainMonitor, Res]),
+          io:fwrite("resMonitor: My monitor ~p died (~p)~n", [MainMonitor, Res]),
           RefServer = erlang:monitor(process, Server),
           RefGui = erlang:monitor(process, Gui),
           RefSnn = erlang:monitor(process, Snn),
@@ -42,8 +41,9 @@ start(Server, Gui, Snn, Graph, MainMonitor, OutLayer, DefStartMonitor) ->
           put(refGraph, RefGraph),
           put(refOL, RefOL),
 
-          %% Now the res monitor takes main monitor work, need to create def monitor for it
+          %% Now the resMonitor takes the job of the main monitor
           DefMonitor = spawn(resmonitor, createdefmonitor, [self(), Server, Gui, Snn, Graph, OutLayer]),%%creating the def for the new active monitor
+          put(defMon, DefMonitor),
           RefDefM = erlang:monitor(process, DefMonitor),
           put(refDefM, RefDefM),
           io:fwrite("Def Monitor is: ~p~n", [DefMonitor]),
@@ -52,7 +52,7 @@ start(Server, Gui, Snn, Graph, MainMonitor, OutLayer, DefStartMonitor) ->
         _ ->
           io:fwrite("Waiting to change the active monitor ~n", []),
           Active = rpc:call('monitorNode@127.0.0.1', monitor, getActive, []),
-          io:fwrite("Changing the active monitor ~n", []),
+          io:fwrite("Changed the active monitor ~n", []),
           _ = erlang:monitor(process, Active),
           start(Server, Gui, Snn, Graph, Active, OutLayer, DefStartMonitor)
       end;
@@ -70,13 +70,14 @@ start(Server, Gui, Snn, Graph, MainMonitor, OutLayer, DefStartMonitor) ->
   %% Receiving the pids from the main monitor
     {monitor, NewServer, NewGui, NewSnn, NewGraph, NewOutLayer} ->
       NewMainMonitor = rpc:call('monitorNode@127.0.0.1', erlang, whereis, [monitor]),
-      io:fwrite("resMonitor: Recived message from main monitor ~p~n", [NewMainMonitor]),
+      io:fwrite("Recived message from main monitor ~p ~n", [NewMainMonitor]),
       case get(defSMon) of
         undefined ->%% first inter
           NewDefSTartMonitor = spawn(resmonitor, createdefStartmonitor, [self(), NewMainMonitor, NewServer, NewGui, NewSnn, NewGraph, NewOutLayer]),
           put(defSMon, NewDefSTartMonitor);
         Dmonitor -> NewDefSTartMonitor = Dmonitor
       end,
+
       RefDef = erlang:monitor(process, NewDefSTartMonitor),
       RefMain = erlang:monitor(process, NewMainMonitor),
       put(refMain, RefMain),
@@ -85,12 +86,12 @@ start(Server, Gui, Snn, Graph, MainMonitor, OutLayer, DefStartMonitor) ->
 
   %% Received message to terminate
     {monitor, terminate} ->
-      erlang:display("Monitor terminating the system~n"),
+      erlang:display("Monitor terminating the system"),
       _ = erlang:demonitor(get(refMain)),
       _ = erlang:demonitor(get(refDef)),
       DefStartMonitor ! {monitor, terminate};
 
-    Msg -> io:fwrite("Recived message from unknown source: ~p ~n", [Msg])
+    Msg -> io:fwrite("recived message from unknown source: ~p ~n", [Msg])
   end.
 
 
@@ -105,49 +106,36 @@ flush() ->
 start() ->
   flush(),
   timer:sleep(2000),
-
-  %% Checking if the node is on
+  %% Checks if the node is on
   case rpc:call('serverNode@127.0.0.1', erlang, whereis, [server]) of
     {badrpc, _} -> io:format("You need to create server node ~n", []),
       start();
-
     undefined -> ok;
-
     _ -> ok
   end,
 
-  %% Checking if the node is on
   case rpc:call('graphicsNode@127.0.0.1', erlang, whereis, [gui]) of
-    {badrpc, _} -> io:format("you need to create graphics node ~n", []),
+    {badrpc, _} -> io:format("You need to create graphics node ~n", []),
       start();
-
-    undefined ->
-      ok;
-
+    undefined -> ok;
     _ -> ok
   end,
 
-  %% Checking if the node is on
   case rpc:call('snnNode@127.0.0.1', erlang, whereis, [snn]) of
     {badrpc, _} -> io:format("You need to create SNN node ~n", []),
       start();
-
-    undefined ->
-      ok;
-
+    undefined -> ok;
     _ -> ok
   end,
 
-  %% Checking if the node is on
   case rpc:call('outlayerNode@127.0.0.1', erlang, whereis, [outlayer]) of
     {badrpc, _} -> io:format("You need to create out layer node ~n", []),
       start();
     undefined -> ok;
-
     _ -> ok
   end,
 
-  %% Check if the res monitor is registered or the other defender monitors ar working
+  %% Checks if the resMonitor is registered or the other defender monitors are working
   case whereis(resmonitor) of
     undefined -> case erlang:whereis(defMonitor) of
                    undefined ->
@@ -165,12 +153,12 @@ start() ->
   {Gui, Graph} = rpc:call('graphicsNode@127.0.0.1', graphics, init, []),
   Snn = rpc:call('snnNode@127.0.0.1', snn, init, []),
   OutLayerPid = rpc:call('outlayerNode@127.0.0.1', outlayer, init, []),
-
   case get(defMon) of
     undefined -> DefMonitor = spawn(resmonitor, createdefmonitor, [self(), Server, Gui, Snn, Graph, OutLayerPid]),
       put(defMon, DefMonitor);
     Dmonitor -> DefMonitor = Dmonitor
   end,
+
   io:fwrite("Def Monitor is: ~p~n", [DefMonitor]),
   io:fwrite("Server is: ~p~n", [Server]),
   io:fwrite("Gui is: ~p~n", [Gui]),
@@ -194,7 +182,7 @@ start() ->
   monitorloop(Server, Gui, Snn, Graph, OutLayerPid, DefMonitor).
 
 
-%% Handle down messages and restarting the system
+%% Handles down messages and restarting the system
 monitorloop(Server, Gui, Snn, Graph, OutLayerPid, DefMonitor) ->
   flush(),
   spawn(server, activeMonitor, [server, 'serverNode@127.0.0.1', self(), node()]),
@@ -208,7 +196,6 @@ monitorloop(Server, Gui, Snn, Graph, OutLayerPid, DefMonitor) ->
       _ = erlang:demonitor(get(refGraph)),
       _ = erlang:demonitor(get(refOL)),
       _ = erlang:demonitor(get(refDefM)),
-
       Server ! {monitor, terminate},
       Gui ! {monitor, terminate},
       Snn ! {monitor, terminate},
@@ -244,7 +231,7 @@ monitorloop(Server, Gui, Snn, Graph, OutLayerPid, DefMonitor) ->
       flush(),
       start();
 
-    {'DOWN', _, process, Snn, Res} -> io:format("resMonitor: My SNN ~p died (~p)~n", [Snn, Res]),
+    {'DOWN', _, process, Snn, Res} -> io:format("resMonitor: My Snn ~p died (~p)~n", [Snn, Res]),
       {gui, 'graphicsNode@127.0.0.1'} ! {monitor, exit},
       {graph, 'graphicsNode@127.0.0.1'} ! {monitor, exit},
       {outlayer, 'outlayerNode@127.0.0.1'} ! {monitor, exit},
@@ -258,7 +245,7 @@ monitorloop(Server, Gui, Snn, Graph, OutLayerPid, DefMonitor) ->
       {gui, 'graphicsNode@127.0.0.1'} ! {monitor, exit},
       {outlayer, 'outlayerNode@127.0.0.1'} ! {monitor, exit},
       spawn(server, stop, [server, 'serverNode@127.0.0.1']),
-      io:format("Restarting the application ~n", []),
+      io:format("restarting the application ~n", []),
       flush(),
       start();
 
@@ -271,7 +258,7 @@ monitorloop(Server, Gui, Snn, Graph, OutLayerPid, DefMonitor) ->
       flush(),
       start();
 
-    Rec -> io:format("Unknown source of message: ~p ~n", [Rec])
+    Rec -> io:format("Unknown source: ~p ~n", [Rec])
   end.
 
 
@@ -280,18 +267,20 @@ createdefmonitor(MonitorPid, Server, Gui, Snn, Graph, OutLayerPid) ->
   put(refMon, RefMon),
   defmonitor(MonitorPid, Server, Gui, Snn, Graph, OutLayerPid).
 
+
 defmonitor(MonitorPid, Server, Gui, Snn, Graph, OutLayerPid) ->
   receive
     {monitor, terminate} ->
       _ = erlang:demonitor(get(refMon)),
       ok;
 
-    {'DOWN', _, process, MonitorPid, Res} -> % When the active monitor is died, the defMonitor need to start
+    {'DOWN', _, process, MonitorPid, Res} ->
       io:format("defMonitor: ~p~n", [self()]),
-      register(defMonitor, self()),
+      register(defMonitor, self()), % The previous is died then no need to check if it registered
       io:format("defMonitor: Old monitor down message is:~p~n", [Res]),
-      DefMonitor = spawn(resmonitor, createdefmonitor, [self(), Server, Gui, Snn, Graph, OutLayerPid]), % Creating the def for the new active monitor
+      DefMonitor = spawn(resmonitor, createdefmonitor, [self(), Server, Gui, Snn, Graph, OutLayerPid]),%%creating the def for the new active monitor
       put(defMon, DefMonitor),
+
       RefDefM = erlang:monitor(process, DefMonitor),
       RefServer = erlang:monitor(process, Server),
       RefGui = erlang:monitor(process, Gui),
@@ -310,13 +299,11 @@ defmonitor(MonitorPid, Server, Gui, Snn, Graph, OutLayerPid) ->
   end.
 
 
-%% Blocking way to get the active monitor, because need to wait to create itself
 getActive() ->
   case erlang:whereis(defStartMonitor) of
     undefined -> getActive();
     DefMonitor -> DefMonitor
   end.
-
 
 createdefStartmonitor(MonitorPid, MainMonitor, Server, Gui, Snn, Graph, OutLayerPid) ->
   RefMon = erlang:monitor(process, MonitorPid),
@@ -331,14 +318,14 @@ defStartmonitor(MonitorPid, MainMonitor, Server, Gui, Snn, Graph, OutLayerPid) -
       _ = erlang:demonitor(get(refMon)),
       ok;
 
-    {'DOWN', _, process, MonitorPid, Res} ->
+    {'DOWN', _, process, MonitorPid, Res} ->%% when th active monitor is died the def monitor need to start
       case erlang:whereis(defMonitor) of
-        undefined ->
+        undefined ->%% the monitor isn't in the monitor loop
           case rpc:call('monitorNode@127.0.0.1', erlang, whereis, [stam]) of
             undefined ->
               register(defStartMonitor, self()),
-              io:format("defStartMonitor: Old startmonitor down message is: ~p~n", [Res]),
-              DefStartMonitor = spawn(resmonitor, createdefStartmonitor, [self(), MainMonitor, Server, Gui, Snn, Graph, OutLayerPid]),
+              io:format("Old startMonitor down message is: ~p~n", [Res]),
+              DefStartMonitor = spawn(resmonitor, createdefStartmonitor, [self(), MainMonitor, Server, Gui, Snn, Graph, OutLayerPid]),%%creating the def for the new active monitor
               put(defSMon, DefStartMonitor),
               RefMain = erlang:monitor(process, MainMonitor),
               RefDef = erlang:monitor(process, DefStartMonitor),

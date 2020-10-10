@@ -12,6 +12,7 @@
 %% API
 -export([init/0, check/0, start/0]).
 
+
 %% Initiating the output layer
 init() ->
   Pid = spawn(outlayer, start, []),
@@ -28,14 +29,13 @@ start() ->
       layer:killoutputlayer(),
       ok;
 
-    {monitor, exit} -> %% Terminated
+    {monitor, exit} -> % Terminated
       erlang:display("Monitor terminating the SNN network output layer~n"),
       layer:killoutputlayer(),
       ok;
 
     _ -> nothingtodo
   end.
-
 
 check() ->
   ets:info(neuronOutputEts).

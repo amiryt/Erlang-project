@@ -12,7 +12,7 @@
 %% API
 -export([init/0, start/0]).
 
-%% initiate the network input layer
+%% Initiate the network input layer
 init() ->
   Pid = spawn(snn, start, []),
   register(snn, Pid),
@@ -23,26 +23,22 @@ start() ->
   layer:start(1, 1, 'outlayerNode@127.0.0.1'),
   snnHandler().
 
-%% Handle message of the input layer
+%% Handles message of the input layer
 snnHandler() ->
   receive
     {monitor, terminate}->
       erlang:display("Monitor terminating the system~n"),
       layer:killinputlayer(),
-      ok;
+      ok  ;
 
     {monitor, exit} ->
-      erlang:display("Monitor terminating the SNN network input layer~n"),
+      erlang:display("monitor terminating the SNN network input layer~n"),
       layer:killinputlayer(),
       ok;
 
     {test, InData} ->
       layer:active_input_layer(InData),
-      snnHandler();
+      snnHandler()  ;
 
     _ -> nothingtodo
-  end
-
-
-.
-
+  end.
