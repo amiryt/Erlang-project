@@ -69,14 +69,13 @@ start(CurrentNumber, NumberComputers, OutputComputer_Address) ->
   initiate_weights(Start, In, End + 1, In + Out, weightsEts, neuronEts), % Setting the weights by sending them to the neurons in the output layer
 %%  I = test(),
 %%  active_input_layer(I),
-%%  TODO: TESTING!!!!!
 %%  NeuronMap = createNeuronsMap(1, End - Start + 1),
 %%  L1 = registered(),
 %%  P = include_str("neuron", [atom_to_list(X) || X <- L1]),
 %%  P_temp = ["neuron4"],
 %%  Died = remove_all(P_temp, NeuronMap),
-  exit(erlang:whereis(neuron105), kill),
-  security_check(End - Start + 1, 1),
+%%  exit(erlang:whereis(neuron105), kill),
+%%  security_check(End - Start + 1, 1),
   bye.
 
 
@@ -289,11 +288,7 @@ create_neuron(Start_Option, Number, ParaMap) ->
       end; % The neuron hasn't created or fell!!
     _ -> io:format("Neuron~p is already created~n", [Number])
   end.
-%%  Pid_Neuron = spawn(fun() -> actions_neuron(Number) end), % This is the Pid of the neuron
-%%  Pid_Neuron ! {create, {Number, self()}, Start_Option, ParaMap},
-%%  receive
-%%    Info -> Info
-%%  end.
+
 
 %% @doc  Receives: Neuron_Number - The number of the neuron
 %%      This function is response on the connections between each neuron to the system (which are the layers)
