@@ -4,7 +4,7 @@
 -export([init/1, handle_call/3, handle_cast/2,
   handle_info/2, terminate/2, code_change/3]).
 
--export([start/0, endTest/3, testImage/3, graphDraw/4, stop/2]).
+-export([start/0, endTest/3, testImage/3, graphDraw/4, stop/2,activeMonitor/4,terminateApp/3]).
 
 % public functions
 
@@ -17,10 +17,18 @@ start() ->
 
   Pid
 
-
 .
 
 
+terminateApp(Name, Node,Key)->
+  gen_server:call({Name, Node}, {terminateApp, Key}),
+  stop(Name, Node)
+  .
+
+activeMonitor(Name, Node, Key,ActNode)->
+
+  gen_server:call({Name, Node}, {activeMonitor, Key,ActNode})
+  .
 
 %% send message to the gui of ending the test
 endTest(Name, Node, Key) ->
@@ -47,6 +55,11 @@ stop(Name, Node) ->
 init(_Args) ->
   {ok,[]}.
 
+handle_call({activeMonitor, Active,ActNode}, _From, State) ->
+  erlang:display("putting the active monitor"),
+  put(activeMonitor,{Active,ActNode}),
+  {noreply, State}
+;
 
 handle_call({testImage, Conv}, _From, State) ->
 
@@ -61,6 +74,13 @@ handle_call({graphDraw, Nm, NeuronNumber}, _From, State) ->
 handle_call(stop, _From, State) ->
   {stop, normal, shutdown_ok, State}
 ;
+handle_call({terminateApp, _}, _From, State) ->
+  erlang:display("terminating!!!!"),
+  {Monitor,_}=get(activeMonitor),
+  Monitor!{server,terminate},
+
+
+  {noreply, State};
 
 handle_call({endTest, _}, _From, State) ->
   {gui, 'graphicsNode@127.0.0.1'} ! {server, finished},
