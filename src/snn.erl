@@ -32,7 +32,13 @@ start() ->
 snnHandler() ->
 
   receive
+    {monitor, terminate}->
+      erlang:display("monitor terminating the system"),
+      layer:killinputlayer(),
+      ok
+  ;
     {monitor, exit} ->
+      erlang:display("monitor terminating the Snn ntwork input layer"),
       layer:killinputlayer(),
       ok;
 
