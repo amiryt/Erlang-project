@@ -6,8 +6,6 @@ In this branch we will present a full distributed SNN that works with two comput
  - One computer would be the input layer of the SNN
  - Second computer would be the output layer of the SNN
  
- Note: in our main project there is a server and graphic interface for the network.
- 
 ## Network Structure
    As said before, we used two computers one for every layer.
    
