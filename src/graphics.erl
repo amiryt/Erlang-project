@@ -196,6 +196,7 @@ loop(State) ->
       wxStaticText:setLabel(ST2001, "DRAWING: at the end press save, then exit!"),
       {ok, PyPID} = python:start([{python_path, "conv.py"}, {python, "python3"}]),
       python:call(PyPID, paint, draw, []),
+      put(drawed,1),
       wxStaticText:setLabel(ST2001, "Choose option number 4 to send the drawed Image"),
       loop(State);
 
@@ -208,20 +209,27 @@ loop(State) ->
             0 ->
               case list_to_integer(T1001_val) of
                 1 -> put(isactive, 1),
+                  show(0),
                   spawn(server, testImage, [server, 'serverNode@127.0.0.1', conv1(0)]),
                   wxStaticText:setLabel(ST2001, "The network in progress please wait");
 
                 2 -> put(isactive, 1),
+                  show(1),
                   spawn(server, testImage, [server, 'serverNode@127.0.0.1', conv1(1)]),
                   wxStaticText:setLabel(ST2001, "The network in progress please wait");
 
                 3 -> put(isactive, 1),
+                  show(2),
                   spawn(server, testImage, [server, 'serverNode@127.0.0.1', conv1(2)]),
                   wxStaticText:setLabel(ST2001, "The network in progress please wait");
 
                 4 -> put(isactive, 1),
-                  spawn(server, testImage, [server, 'serverNode@127.0.0.1', conv1(3)]),
-                  wxStaticText:setLabel(ST2001, "The network in progress please wait");
+                  case get(drawed) of
+                    undefined-> wxStaticText:setLabel(ST2001, "you didn't drawed an image");
+                    _->show(3),
+                      spawn(server, testImage, [server, 'serverNode@127.0.0.1', conv1(3)]),
+                      wxStaticText:setLabel(ST2001, "The network in progress please wait")
+                  end;
 
                 _ -> wxStaticText:setLabel(ST2001, "Invalid input, Please choose again")
               end;
@@ -248,6 +256,13 @@ conv1(ImageNum) ->
   {ok, PyPID} = python:start([{python_path, "conv.py"}, {python, "python3"}]),
   Result = python:call(PyPID, conv, getImageTraing, [ImageNum]),
   Result.
+
+show(Nm)->
+
+  {ok, PyPID} = python:start([{python_path, "show.py"}, {python, "python3"}]),
+  spawn(fun()->python:call(PyPID, show, showImg, [Nm]) end)
+
+  .
 
 
 draw(Nm1, Nm2, Nm3, Nm4) ->
