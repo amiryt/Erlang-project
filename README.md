@@ -26,3 +26,46 @@ In this branch we will present a full distributed SNN that works with two comput
   After we tested our network we got results that show that we indeed identify between X/O:
    
   ![alt text](Images/results.png)
+  
+## Instructions
+  You need to open 6 different nodes that share the same cookie.
+  
+  The nodes are: Monitor, resMonitor, Server, Graphics, SNN, outputLayer
+  
+  - **Monitor** - He is responsible on tracking the other nodes and check if they fell.
+   ```bash
+   erl -name monitorNode@127.0.0.1 -setcookie test
+   c(monitor).
+   monitor:init(). % Activates the monitor and starts the program
+   ```
+    
+  - **resMonitor** - If the main monitor fell, he replaces him and keep tracking the system.
+   ```bash
+   erl -name resmonitor@127.0.0.1 -setcookie test
+   c(resmonitor).
+   resmonitor:init(). % Activates the resmonitor
+   ```
+
+  - **Server** - He is responsible on sending messages between the nodes.
+   ```bash
+   erl -name serverNode@127.0.0.1 -setcookie test
+   c(server).
+   ```
+    
+  - **Graphics** - Starts the node that responsible on gui & graphics
+   ```bash
+   erl -name graphicsNode@127.0.0.1 -setcookie test
+   c(graphics).
+   ```
+
+  - **SNN** - The node of the input layer of the neural network.
+   ```bash
+   erl -name snnNode@127.0.0.1 -setcookie test
+   c(neuron), c(layer), c(snn).
+   ```
+    
+  - **outLayer** - The node of the output layer of the neural network.
+   ```bash
+   erl -name outlayer@127.0.0.1 -setcookie test
+   c(neuron), c(layer), c(outlayer).
+   ```
