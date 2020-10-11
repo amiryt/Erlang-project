@@ -10,21 +10,27 @@
 -author("kyan").
 
 %% API
--export([init/0, check/0, start/0]).
+-export([init/0, start/0]).
 
 
 %% Initiating the output layer
 init() ->
-  Pid = spawn(outlayer, start, []),
+
+
+  Pid = spawn(outlayer, start, []),%% At the beginning, there are no pids default is ones
   register(outlayer, Pid),
   Pid.
 
 
 %% Waiting for terminate message
 start() ->
+  %%layer:killoutputlayer(),
   layer:start_output_layer(),
+  outlayerHandler().
+
+outlayerHandler() ->
   receive
-    {monitor, terminate}->
+    {monitor, terminate} ->
       erlang:display("Monitor terminating the system~n"),
       layer:killoutputlayer(),
       ok;
@@ -34,8 +40,7 @@ start() ->
       layer:killoutputlayer(),
       ok;
 
-    _ -> nothingtodo
+    _ -> outlayerHandler()
   end.
 
-check() ->
-  ets:info(neuronOutputEts).
+

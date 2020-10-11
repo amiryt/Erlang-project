@@ -97,7 +97,7 @@ start() ->
   ResMonitor = Y,
 
 
-  timer:sleep(1000),%% wait until intiating the resmonitor %% I can do that with rpc!
+  timer:sleep(2000),%% wait until intiating the resmonitor %% I can do that with rpc!
   case get(defMon) of
     undefined ->
       DefMonitor = spawn(monitor, createdefmonitor, [self(), Server, Gui, Snn, Graph, ResMonitor, OutLayerPid]),
@@ -140,10 +140,10 @@ start() ->
 monitorloop(Server, Gui, Snn, Graph, ResMonitor, OutLayerPid, DefMonitor) ->
   spawn(server, activeMonitor, [server, 'serverNode@127.0.0.1', self(), node()]),
   flush(),
-  io:format("mainMonitor: Waiting in the loop~n", []),
+  io:format("mainMonitor (~p): Waiting in the loop~n", [self()]),
   receive
     {server, terminate} ->
-      io:format("mainMonitor: Terminating the system~n", []),
+      io:format("mainMonitor (~p): Terminating the system~n", [self()]),
       _ = erlang:demonitor(get(refServer)),
       _ = erlang:demonitor(get(refGui)),
       _ = erlang:demonitor(get(refSnn)),
@@ -162,8 +162,6 @@ monitorloop(Server, Gui, Snn, Graph, ResMonitor, OutLayerPid, DefMonitor) ->
       io:format("mainMonitor: Terminate messages sent ~n", []),
       flush();
 
-    {gui, terminate} ->
-      io:format("Monitor: Terminating the application ~n", []);
 
   %% Terminating the other process
     {'DOWN', _, process, ResMonitor, Res} ->
@@ -178,13 +176,15 @@ monitorloop(Server, Gui, Snn, Graph, ResMonitor, OutLayerPid, DefMonitor) ->
           monitorloop(Server, Gui, Snn, Graph, Active, OutLayerPid, DefMonitor)
       end;
 
-    {'DOWN', _, process, DefMonitor, Res} -> io:format("mainMonitor: My server ~p died (~p)~n", [Server, Res]),
+    {'DOWN', _, process, DefMonitor, Res} -> io:format("mainMonitor (~p): My server ~p died (~p)~n", [self(),Server, Res]),
       io:format("mainMonitor: My defmonitor ~p died (~p)~n", [DefMonitor, Res]),
       NewDefMonitor = spawn(monitor, createdefmonitor, [self(), Server, Gui, Snn, Graph, ResMonitor, OutLayerPid]),
-      _ = erlang:monitor(process, NewDefMonitor),
+      RefMon = erlang:monitor(process, NewDefMonitor),
+      put(refMon, RefMon),
+      put(defMon, DefMonitor),
       monitorloop(Server, Gui, Snn, Graph, ResMonitor, OutLayerPid, NewDefMonitor);
 
-    {'DOWN', _, process, Server, Res} -> io:format("mainMonitor: My server ~p died (~p)~n", [Server, Res]),
+    {'DOWN', _, process, Server, Res} -> io:format("mainMonitor (~p): My server ~p died (~p)~n", [self(),Server, Res]),
       {graph, 'graphicsNode@127.0.0.1'} ! {monitor, exit},
       {snn, 'snnNode@127.0.0.1'} ! {monitor, exit},
       {gui, 'graphicsNode@127.0.0.1'} ! {monitor, exit},
@@ -193,37 +193,41 @@ monitorloop(Server, Gui, Snn, Graph, ResMonitor, OutLayerPid, DefMonitor) ->
       flush(),
       start();
 
-    {'DOWN', _, process, Gui, Res} -> io:format("mainMonitor: My gui ~p died (~p)~n", [Gui, Res]),
+    {'DOWN', _, process, Gui, Res} -> io:format("mainMonitor (~p): My gui ~p died (~p)~n", [self(),Gui, Res]),
       {graph, 'graphicsNode@127.0.0.1'} ! {monitor, exit},
       {snn, 'snnNode@127.0.0.1'} ! {monitor, exit},
       {outlayer, 'outlayerNode@127.0.0.1'} ! {monitor, exit},
+      {gui, 'graphicsNode@127.0.0.1'} ! {monitor, exit},
       spawn(server, stop, [server, 'serverNode@127.0.0.1']),
       io:format("Restarting the application ~n", []),
       flush(),
       start();
 
-    {'DOWN', _, process, Snn, Res} -> io:format("mainMonitor: My SNN ~p died (~p)~n", [Snn, Res]),
+    {'DOWN', _, process, Snn, Res} -> io:format("mainMonitor (~p): My SNN ~p died (~p)~n", [self(),Snn, Res]),
       {gui, 'graphicsNode@127.0.0.1'} ! {monitor, exit},
       {graph, 'graphicsNode@127.0.0.1'} ! {monitor, exit},
       {outlayer, 'outlayerNode@127.0.0.1'} ! {monitor, exit},
+      {snn, 'snnNode@127.0.0.1'} ! {monitor, exit},
       spawn(server, stop, [server, 'serverNode@127.0.0.1']),
       io:format("Restarting the application ~n", []),
       flush(),
       start();
 
-    {'DOWN', _, process, Graph, Res} -> io:format("mainMonitor: My Graph ~p died (~p)~n", [Graph, Res]),
+    {'DOWN', _, process, Graph, Res} -> io:format("mainMonitor (~p): My Graph ~p died (~p)~n", [self(),Graph, Res]),
       {snn, 'snnNode@127.0.0.1'} ! {monitor, exit},
       {gui, 'graphicsNode@127.0.0.1'} ! {monitor, exit},
       {outlayer, 'outlayerNode@127.0.0.1'} ! {monitor, exit},
+      {graph, 'graphicsNode@127.0.0.1'} ! {monitor, exit},
       spawn(server, stop, [server, 'serverNode@127.0.0.1']),
       io:format("Resting the application ~n", []),
       flush(),%% to clear the mail box
       start();
 
-    {'DOWN', _, process, OutLayerPid, Res} -> io:format("mainMonitor: My Graph ~p died (~p)~n", [OutLayerPid, Res]),
+    {'DOWN', _, process, OutLayerPid, Res} -> io:format("mainMonitor (~p): My Graph ~p died (~p)~n", [self(),OutLayerPid, Res]),
       {snn, 'snnNode@127.0.0.1'} ! {monitor, exit},
       {gui, 'graphicsNode@127.0.0.1'} ! {monitor, exit},
       {graph, 'graphicsNode@127.0.0.1'} ! {monitor, exit},
+      {outlayer, 'outlayerNode@127.0.0.1'} ! {monitor, exit},
       spawn(server, stop, [server, 'serverNode@127.0.0.1']),
       io:format("Restarting the application ~n", []),
       flush(),
@@ -255,7 +259,7 @@ defmonitor(MonitorPid, Server, Gui, Snn, Graph, ResMonitor, OutLayerPid) ->
 
     {'DOWN', _, process, MonitorPid, Res} ->%% when th active monitor is died the def monitor need to start
       register(defMonitor, self()),
-      io:format("defMonitor: Old monitor down message is:~p~n", [Res]),
+      io:format("defMonitor (~p): Old monitor down message is:~p~n", [self(),Res]),
       DefMonitor = spawn(monitor, createdefmonitor, [self(), Server, Gui, Snn, Graph, ResMonitor, OutLayerPid]),%%creating the def for the new active monitor
       put(defMon, DefMonitor),
       RefServer = erlang:monitor(process, Server),

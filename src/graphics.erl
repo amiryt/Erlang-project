@@ -52,7 +52,8 @@ graphHanlder() ->
 
       end,
       graphHanlder();
-    _ -> 1
+    _ ->  graphHanlder()
+
   end.
 
 
@@ -231,7 +232,7 @@ loop(State) ->
           wxStaticText:setLabel(ST2001, "Only integers are allowed!")
       end,
       loop(State);
-    _-> ok
+    _-> loop(State)
   end.
 
 
