@@ -86,8 +86,18 @@ start() ->
   {Gui, Graph} = rpc:call('graphicsNode@127.0.0.1', graphics, init, []),
   Snn = rpc:call('snnNode@127.0.0.1', snn, init, []),
   OutLayerPid = rpc:call('outlayerNode@127.0.0.1', outlayer, init, []),
-  ResMonitor = rpc:call('resmonitorNode@127.0.0.1', erlang, whereis, [resmonitor]),
 
+  case rpc:call('resmonitorNode@127.0.0.1', erlang, whereis, [resmonitor]) of
+    undefined ->
+      Y = rpc:call('resmonitorNode@127.0.0.1', erlang, whereis, [defStartMonitor]);
+
+    RM -> Y = RM
+  end,
+
+  ResMonitor = Y,
+
+
+  timer:sleep(1000),%% wait until intiating the resmonitor %% I can do that with rpc!
   case get(defMon) of
     undefined ->
       DefMonitor = spawn(monitor, createdefmonitor, [self(), Server, Gui, Snn, Graph, ResMonitor, OutLayerPid]),
@@ -96,13 +106,17 @@ start() ->
   end,
 
   %% Sending the pids to resMonitor to save them
-  {resmonitor, 'resmonitorNode@127.0.0.1'} ! {monitor, Server, Gui, Snn, Graph, OutLayerPid},
+
   io:fwrite("Server is: ~p~n", [Server]),
   io:fwrite("GUI is: ~p~n", [Gui]),
   io:fwrite("SNN is: ~p~n", [Snn]),
   io:fwrite("Graph is: ~p~n", [Graph]),
   io:fwrite("ResMonitor is: ~p~n", [ResMonitor]),
   io:fwrite("Out Layer is: ~p~n", [OutLayerPid]),
+  ResMonitor! {monitor, Server, Gui, Snn, Graph, OutLayerPid},%% intiate message of the res
+
+
+
 
   %% Monitoring
   RefServer = erlang:monitor(process, Server),
