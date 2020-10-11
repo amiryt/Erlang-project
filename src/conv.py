@@ -107,10 +107,10 @@ def encode2(T, dt, pot):
 
 
 def getImageTraing(Num):
-    image= str(Num)+".jpg"
+    image= "/home/kyan/Desktop/finalWorks/Images/image"+str(Num)+".jpg"
     img = imageio.imread(image)
     pot = rf(img)
-    train = encode(50, 0.125, pot)
+    train = encode(150, 0.125, pot)
     #f = open(train_text, 'w')
     #print(np.shape(train))
     Image=[]
@@ -121,15 +121,14 @@ def getImageTraing(Num):
             Imagei.append(int(train[j][i]))
         Image.append(Imagei)
 
-    #print(Image)
+   # print(Image)
     return Image
 
 
 
 
 if __name__== '__main__':
-      getImageTraing()
-    #return Image
+      1
 
 
 

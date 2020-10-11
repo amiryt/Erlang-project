@@ -25,10 +25,11 @@ start() ->
     {badrpc, _} -> io:format("You need to create resMonitor node ~n", []),
       start();
 
-    undefined ->
-      io:format("You need to create resMonitor process ~n", []),
-      start();
-
+    undefined -> case rpc:call('resmonitorNode@127.0.0.1', erlang, whereis, [defStartMonitor]) of
+                   undefined -> io:format("You need to create resMonitor process ~n", []),
+                     start();
+                   _ -> ok
+                 end;
     _ -> ok
   end,
 
@@ -90,7 +91,7 @@ start() ->
   case get(defMon) of
     undefined ->
       DefMonitor = spawn(monitor, createdefmonitor, [self(), Server, Gui, Snn, Graph, ResMonitor, OutLayerPid]),
-      put(defMon,DefMonitor);
+      put(defMon, DefMonitor);
     Dmonitor -> DefMonitor = Dmonitor
   end,
 
@@ -111,39 +112,39 @@ start() ->
   RefRes = erlang:monitor(process, ResMonitor),
   RefOL = erlang:monitor(process, OutLayerPid),
   RefDefM = erlang:monitor(process, DefMonitor),
-  put(refServer,RefServer),
-  put(refGui,RefGui),
-  put(refSnn,RefSnn),
-  put(refGraph,RefGraph),
-  put(refRes,RefRes),
-  put(refOL,RefOL),
-  put(refDefM,RefDefM),
+  put(refServer, RefServer),
+  put(refGui, RefGui),
+  put(refSnn, RefSnn),
+  put(refGraph, RefGraph),
+  put(refRes, RefRes),
+  put(refOL, RefOL),
+  put(refDefM, RefDefM),
   monitorloop(Server, Gui, Snn, Graph, ResMonitor, OutLayerPid, DefMonitor).
 
 
 %% to handle down messages to restart the application
 monitorloop(Server, Gui, Snn, Graph, ResMonitor, OutLayerPid, DefMonitor) ->
-  spawn(server, activeMonitor, [server, 'serverNode@127.0.0.1', self(),node()]),
+  spawn(server, activeMonitor, [server, 'serverNode@127.0.0.1', self(), node()]),
   flush(),
   io:format("mainMonitor: Waiting in the loop~n", []),
   receive
-    {server,terminate}->
+    {server, terminate} ->
       io:format("mainMonitor: Terminating the system~n", []),
-      _ = erlang:demonitor( get(refServer)),
-      _ = erlang:demonitor( get(refGui)),
-      _ = erlang:demonitor( get(refSnn)),
-      _ = erlang:demonitor( get(refGraph)),
-      _ = erlang:demonitor( get(refRes)),
-      _ = erlang:demonitor( get(refOL)),
+      _ = erlang:demonitor(get(refServer)),
+      _ = erlang:demonitor(get(refGui)),
+      _ = erlang:demonitor(get(refSnn)),
+      _ = erlang:demonitor(get(refGraph)),
+      _ = erlang:demonitor(get(refRes)),
+      _ = erlang:demonitor(get(refOL)),
       _ = erlang:demonitor(get(refDefM)),
 
-      Server!{monitor, terminate},
-      Gui!{monitor, terminate},
-      Snn!{monitor, terminate},
-      OutLayerPid!{monitor, terminate},
-      Graph!{monitor, terminate},
-      ResMonitor!{monitor, terminate},
-      DefMonitor!{monitor, terminate},
+      Server ! {monitor, terminate},
+      Gui ! {monitor, terminate},
+      Snn ! {monitor, terminate},
+      OutLayerPid ! {monitor, terminate},
+      Graph ! {monitor, terminate},
+      ResMonitor ! {monitor, terminate},
+      DefMonitor ! {monitor, terminate},
       io:format("mainMonitor: Terminate messages sent ~n", []),
       flush();
 
@@ -228,21 +229,21 @@ flush() ->
 
 createdefmonitor(MonitorPid, Server, Gui, Snn, Graph, ResMonitor, OutLayerPid) ->
   RefMon = erlang:monitor(process, MonitorPid),
-  put(refMon,RefMon),
+  put(refMon, RefMon),
   defmonitor(MonitorPid, Server, Gui, Snn, Graph, ResMonitor, OutLayerPid).
 
 
 defmonitor(MonitorPid, Server, Gui, Snn, Graph, ResMonitor, OutLayerPid) ->
   receive
-    {monitor, terminate}->
-      _ = erlang:demonitor( get(refMon)),
+    {monitor, terminate} ->
+      _ = erlang:demonitor(get(refMon)),
       ok;
 
     {'DOWN', _, process, MonitorPid, Res} ->%% when th active monitor is died the def monitor need to start
       register(defMonitor, self()),
       io:format("defMonitor: Old monitor down message is:~p~n", [Res]),
       DefMonitor = spawn(monitor, createdefmonitor, [self(), Server, Gui, Snn, Graph, ResMonitor, OutLayerPid]),%%creating the def for the new active monitor
-      put(defMon,DefMonitor),
+      put(defMon, DefMonitor),
       RefServer = erlang:monitor(process, Server),
       RefGui = erlang:monitor(process, Gui),
       RefSnn = erlang:monitor(process, Snn),
@@ -250,13 +251,13 @@ defmonitor(MonitorPid, Server, Gui, Snn, Graph, ResMonitor, OutLayerPid) ->
       RefRes = erlang:monitor(process, ResMonitor),
       RefOL = erlang:monitor(process, OutLayerPid),
       RefDefM = erlang:monitor(process, DefMonitor),
-      put(refServer,RefServer),
-      put(refGui,RefGui),
-      put(refSnn,RefSnn),
-      put(refGraph,RefGraph),
-      put(refRes,RefRes),
-      put(refOL,RefOL),
-      put(refDefM,RefDefM),
+      put(refServer, RefServer),
+      put(refGui, RefGui),
+      put(refSnn, RefSnn),
+      put(refGraph, RefGraph),
+      put(refRes, RefRes),
+      put(refOL, RefOL),
+      put(refDefM, RefDefM),
       monitorloop(Server, Gui, Snn, Graph, ResMonitor, OutLayerPid, DefMonitor);
 
     _ -> nothingtodo

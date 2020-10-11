@@ -319,7 +319,8 @@ defStartmonitor(MonitorPid, MainMonitor, Server, Gui, Snn, Graph, OutLayerPid) -
       ok;
 
     {'DOWN', _, process, MonitorPid, Res} ->%% when th active monitor is died the def monitor need to start
-      case erlang:whereis(defMonitor) of
+      io:format("Old startMonitor down message is: ~p~n", [Res]),
+      case get(defMon) of
         undefined ->%% the monitor isn't in the monitor loop
           case rpc:call('monitorNode@127.0.0.1', erlang, whereis, [stam]) of
             undefined ->

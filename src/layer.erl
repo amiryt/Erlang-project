@@ -259,8 +259,8 @@ actions_neuron(Neuron_Number) ->
         257 -> spawn(server, graphDraw, [server, 'serverNode@127.0.0.1', Value, 1]);
         258 -> spawn(server, graphDraw, [server, 'serverNode@127.0.0.1', Value, 2]);
         259 -> spawn(server, graphDraw, [server, 'serverNode@127.0.0.1', Value, 3]);
-        260 -> spawn(server, graphDraw, [server, 'serverNode@127.0.0.1', Value, 4]);
-        _ -> 1
+        260 -> spawn(server, graphDraw, [server, 'serverNode@127.0.0.1', Value, 4])
+
       end,
       %%io:format("Output neuron~p max is ~p~n", [Neuron_Number, Value]),
       Output_Manager_Pid ! {neuron_finished}; % Tell the manager pid of the output layer we finished

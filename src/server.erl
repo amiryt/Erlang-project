@@ -9,8 +9,15 @@
 % public functions
 
 start() ->
-  {ok, Pid} = gen_server:start({global, server}, ?MODULE, [], []),
-  register(server, Pid),
+
+  case whereis(server) of
+    undefined->{ok, Pid} = gen_server:start({global, server}, ?MODULE, [], []),
+      register(server, Pid);
+    P->erlang:exit(P,kill),
+      {ok, Pid} = gen_server:start({global, server}, ?MODULE, [], []),
+      register(server, Pid)
+
+  end,
   Pid.
 
 
