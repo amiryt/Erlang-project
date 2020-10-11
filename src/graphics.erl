@@ -83,10 +83,10 @@ make_window() ->
     [{label, "image number 3"}]),
 
   %% Creates static texts
-  Texts = [wxStaticText:new(Panel, 1, "info", []),
-    wxStaticText:new(Panel, 2, "info",
+  Texts = [wxStaticText:new(Panel, 1, "to test the network you can choose 1-3 options of the ", []),
+    wxStaticText:new(Panel, 2, "images or draw an image and choose option 4",
       [{style, ?wxALIGN_CENTER bor ?wxST_NO_AUTORESIZE}]),
-    wxStaticText:new(Panel, 3, "info",
+    wxStaticText:new(Panel, 3, "then you need to wait for the test to finish",
       [{style, ?wxALIGN_RIGHT bor ?wxST_NO_AUTORESIZE}])],
 
   Image = wxImage:new("/home/kyan/Desktop/finalWorks/Images/image0.jpg", []),

@@ -69,7 +69,11 @@ start(Server, Gui, Snn, Graph, MainMonitor, OutLayer, DefStartMonitor) ->
 
   %% Receiving the pids from the main monitor
     {monitor, NewServer, NewGui, NewSnn, NewGraph, NewOutLayer} ->
-      NewMainMonitor = rpc:call('monitorNode@127.0.0.1', erlang, whereis, [monitor]),
+       case rpc:call('monitorNode@127.0.0.1', erlang, whereis, [monitor]) of%% if there is no monitor then there is
+         undefined-> X = rpc:call('monitorNode@127.0.0.1', monitor, getActive, []);%% other monitor active
+         MM->X=MM
+       end,
+      NewMainMonitor=X,
       io:fwrite("Recived message from main monitor ~p ~n", [NewMainMonitor]),
       case get(defSMon) of
         undefined ->%% first inter
@@ -320,7 +324,7 @@ defStartmonitor(MonitorPid, MainMonitor, Server, Gui, Snn, Graph, OutLayerPid) -
 
     {'DOWN', _, process, MonitorPid, Res} ->%% when th active monitor is died the def monitor need to start
       io:format("Old startMonitor down message is: ~p~n", [Res]),
-      case get(defMon) of
+      case get(defMon) of%% if the monitor starts to work then it had def monitor
         undefined ->%% the monitor isn't in the monitor loop
           case rpc:call('monitorNode@127.0.0.1', erlang, whereis, [stam]) of
             undefined ->
