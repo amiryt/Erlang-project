@@ -14,19 +14,15 @@
 -export([init/0, start/7, createdefmonitor/6, getActive/0, createdefStartmonitor/7]).
 
 init() ->
-
   case whereis(resmonitor) of
-    undefined-> Pid = spawn(resmonitor, start, [1, 1, 1, 1, 1, 1, 1]),%% At the beginning, there are no pids default is ones
+    undefined ->
+      Pid = spawn(resmonitor, start, [1, 1, 1, 1, 1, 1, 1]),%% At the beginning, there are no pids default is ones
       register(resmonitor, Pid);
-    P->erlang:exit(P,kill),
+    P -> erlang:exit(P, kill),
       Pid = spawn(resmonitor, start, [1, 1, 1, 1, 1, 1, 1]),%% At the beginning, there are no pids default is ones
       register(resmonitor, Pid)
-
   end,
-
   Pid.
-
-
 
 %% Starting the resMonitor and waiting of the down messages of the monitor
 start(Server, Gui, Snn, Graph, MainMonitor, OutLayer, DefStartMonitor) ->
@@ -79,11 +75,11 @@ start(Server, Gui, Snn, Graph, MainMonitor, OutLayer, DefStartMonitor) ->
 
   %% Receiving the pids from the main monitor
     {monitor, NewServer, NewGui, NewSnn, NewGraph, NewOutLayer} ->
-       case rpc:call(?PC_MONITOR, erlang, whereis, [monitor]) of%% if there is no monitor then there is
-         undefined-> X = rpc:call(?PC_MONITOR, monitor, getActive, []);%% other monitor active
-         MM->X=MM
-       end,
-      NewMainMonitor=X,
+      case rpc:call(?PC_MONITOR, erlang, whereis, [monitor]) of%% if there is no monitor then there is
+        undefined -> X = rpc:call(?PC_MONITOR, monitor, getActive, []);%% other monitor active
+        MM -> X = MM
+      end,
+      NewMainMonitor = X,
       io:fwrite("Recived message from main monitor ~p ~n", [NewMainMonitor]),
       case get(defSMon) of
         undefined ->%% first inter
@@ -217,8 +213,7 @@ monitorloop(Server, Gui, Snn, Graph, OutLayerPid, DefMonitor) ->
       Graph ! {monitor, terminate},
       DefMonitor ! {monitor, terminate},
       timer:sleep(5000),
-      exit(self(),kill);
-
+      exit(self(), kill);
 
     {gui, terminate} ->
       io:format("resMonitor: Terminating the application ~n", []);
@@ -231,7 +226,7 @@ monitorloop(Server, Gui, Snn, Graph, OutLayerPid, DefMonitor) ->
       _ = erlang:monitor(process, NewDefMonitor),
       monitorloop(Server, Gui, Snn, Graph, OutLayerPid, NewDefMonitor);
 
-    {'DOWN', _, process, Server, Res} -> io:format("resMonitor (~p): My server ~p died (~p)~n", [self(),Server, Res]),
+    {'DOWN', _, process, Server, Res} -> io:format("resMonitor (~p): My server ~p died (~p)~n", [self(), Server, Res]),
       _ = erlang:demonitor(get(refServer)),
       _ = erlang:demonitor(get(refGui)),
       _ = erlang:demonitor(get(refSnn)),
@@ -245,7 +240,7 @@ monitorloop(Server, Gui, Snn, Graph, OutLayerPid, DefMonitor) ->
       flush(),
       start();
 
-    {'DOWN', _, process, Gui, Res} -> io:format("resMonitor (~p): My GUI ~p died (~p)~n", [self(),Gui, Res]),
+    {'DOWN', _, process, Gui, Res} -> io:format("resMonitor (~p): My GUI ~p died (~p)~n", [self(), Gui, Res]),
       _ = erlang:demonitor(get(refServer)),
       _ = erlang:demonitor(get(refGui)),
       _ = erlang:demonitor(get(refSnn)),
@@ -260,7 +255,7 @@ monitorloop(Server, Gui, Snn, Graph, OutLayerPid, DefMonitor) ->
       flush(),
       start();
 
-    {'DOWN', _, process, Snn, Res} -> io:format("resMonitor (~p): My Snn ~p died (~p)~n", [self(),Snn, Res]),
+    {'DOWN', _, process, Snn, Res} -> io:format("resMonitor (~p): My Snn ~p died (~p)~n", [self(), Snn, Res]),
       _ = erlang:demonitor(get(refServer)),
       _ = erlang:demonitor(get(refGui)),
       _ = erlang:demonitor(get(refSnn)),
@@ -274,7 +269,7 @@ monitorloop(Server, Gui, Snn, Graph, OutLayerPid, DefMonitor) ->
       flush(),
       start();
 
-    {'DOWN', _, process, Graph, Res} -> io:format("resMonitor (~p): My Graph ~p died (~p)~n", [self(),Graph, Res]),
+    {'DOWN', _, process, Graph, Res} -> io:format("resMonitor (~p): My Graph ~p died (~p)~n", [self(), Graph, Res]),
       _ = erlang:demonitor(get(refServer)),
       _ = erlang:demonitor(get(refGui)),
       _ = erlang:demonitor(get(refSnn)),
@@ -288,7 +283,8 @@ monitorloop(Server, Gui, Snn, Graph, OutLayerPid, DefMonitor) ->
       flush(),
       start();
 
-    {'DOWN', _, process, OutLayerPid, Res} -> io:format("resMonitor (~p): My Graph ~p died (~p)~n", [self(),OutLayerPid, Res]),
+    {'DOWN', _, process, OutLayerPid, Res} ->
+      io:format("resMonitor (~p): My Graph ~p died (~p)~n", [self(), OutLayerPid, Res]),
       _ = erlang:demonitor(get(refServer)),
       _ = erlang:demonitor(get(refGui)),
       _ = erlang:demonitor(get(refSnn)),
@@ -304,8 +300,6 @@ monitorloop(Server, Gui, Snn, Graph, OutLayerPid, DefMonitor) ->
 
     Rec -> io:format("Unknown source: ~p ~n", [Rec])
   end.
-
-
 
 
 createdefmonitor(MonitorPid, Server, Gui, Snn, Graph, OutLayerPid) ->

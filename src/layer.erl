@@ -33,7 +33,6 @@ start(CurrentNumber, NumberComputers, OutputComputer_Address) ->
   ParaMap =
     maps:put(dt, 0.125,
       maps:put(simulation_time, 150,
-
         maps:put(t_rest, 0,
           maps:put(rm, 1,
             maps:put(cm, 10,
@@ -261,7 +260,6 @@ actions_neuron(Neuron_Number) ->
         258 -> spawn(server, graphDraw, [server, ?PC_SERVER, Value, 2]);
         259 -> spawn(server, graphDraw, [server, ?PC_SERVER, Value, 3]);
         260 -> spawn(server, graphDraw, [server, ?PC_SERVER, Value, 4])
-
       end,
       %%io:format("Output neuron~p max is ~p~n", [Neuron_Number, Value]),
       Output_Manager_Pid ! {neuron_finished}; % Tell the manager pid of the output layer we finished

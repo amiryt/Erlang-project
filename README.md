@@ -32,6 +32,8 @@ In this branch we will present a full distributed SNN that works with two comput
   
   The nodes are: Monitor, resMonitor, Server, Graphics, SNN, outputLayer
   
+  Note: The ip address depends on your computers, so you can change it from the ![computers](src/computers.hrl) file.
+  
   - **Monitor** - He is responsible on tracking the other nodes and check if they fell.
    ```bash
    erl -name monitorNode@127.0.0.1 -setcookie test
@@ -41,7 +43,7 @@ In this branch we will present a full distributed SNN that works with two comput
     
   - **resMonitor** - If the main monitor fell, he replaces him and keep tracking the system.
    ```bash
-   erl -name resmonitor@127.0.0.1 -setcookie test
+   erl -name resmonitorNode@127.0.0.1 -setcookie test
    c(resmonitor).
    resmonitor:init(). % Activates the resmonitor
    ```
@@ -66,6 +68,6 @@ In this branch we will present a full distributed SNN that works with two comput
     
   - **outLayer** - The node of the output layer of the neural network.
    ```bash
-   erl -name outlayer@127.0.0.1 -setcookie test
+   erl -name outlayerNode@127.0.0.1 -setcookie test
    c(neuron), c(layer), c(outlayer).
    ```

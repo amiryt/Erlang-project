@@ -52,7 +52,7 @@ graphHanlder() ->
 
       end,
       graphHanlder();
-    _ ->  graphHanlder()
+    _ -> graphHanlder()
 
   end.
 
@@ -196,7 +196,7 @@ loop(State) ->
       wxStaticText:setLabel(ST2001, "DRAWING: at the end press save, then exit!"),
       {ok, PyPID} = python:start([{python_path, "conv.py"}, {python, "python3"}]),
       python:call(PyPID, paint, draw, []),
-      put(drawed,1),
+      put(drawed, 1),
       wxStaticText:setLabel(ST2001, "Choose option number 4 to send the drawed Image"),
       loop(State);
 
@@ -225,8 +225,8 @@ loop(State) ->
 
                 4 -> put(isactive, 1),
                   case get(drawed) of
-                    undefined-> wxStaticText:setLabel(ST2001, "you didn't drawed an image");
-                    _->show(3),
+                    undefined -> wxStaticText:setLabel(ST2001, "you didn't drawed an image");
+                    _ -> show(3),
                       spawn(server, testImage, [server, ?PC_SERVER, conv1(3)]),
                       wxStaticText:setLabel(ST2001, "The network in progress please wait")
                   end;
@@ -240,7 +240,7 @@ loop(State) ->
           wxStaticText:setLabel(ST2001, "Only integers are allowed!")
       end,
       loop(State);
-    _-> loop(State)
+    _ -> loop(State)
   end.
 
 
@@ -257,12 +257,12 @@ conv1(ImageNum) ->
   Result = python:call(PyPID, conv, getImageTraing, [ImageNum]),
   Result.
 
-show(Nm)->
+show(Nm) ->
 
   {ok, PyPID} = python:start([{python_path, "show.py"}, {python, "python3"}]),
-  spawn(fun()->python:call(PyPID, show, showImg, [Nm]) end)
+  spawn(fun() -> python:call(PyPID, show, showImg, [Nm]) end)
 
-  .
+.
 
 
 draw(Nm1, Nm2, Nm3, Nm4) ->
