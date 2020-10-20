@@ -34,33 +34,33 @@ In this branch we will present a full distributed SNN that works with two comput
   
   - **Monitor** - He is responsible on tracking the other nodes and check if they fell.
    ```bash
-   erl -name monitorNode@127.0.0.1 -setcookie test
+   erl -name ?PC_MONITOR -setcookie test
    c(monitor).
    monitor:init(). % Activates the monitor and starts the program
    ```
     
   - **resMonitor** - If the main monitor fell, he replaces him and keep tracking the system.
    ```bash
-   erl -name resmonitor@127.0.0.1 -setcookie test
+   erl -name ?PC_RESMONITOR -setcookie test
    c(resmonitor).
    resmonitor:init(). % Activates the resmonitor
    ```
 
   - **Server** - He is responsible on sending messages between the nodes.
    ```bash
-   erl -name serverNode@127.0.0.1 -setcookie test
+   erl -name ?PC_SERVER -setcookie test
    c(server).
    ```
     
   - **Graphics** - Starts the node that responsible on gui & graphics
    ```bash
-   erl -name graphicsNode@127.0.0.1 -setcookie test
+   erl -name ?PC_GRAPHICS -setcookie test
    c(graphics).
    ```
 
   - **SNN** - The node of the input layer of the neural network.
    ```bash
-   erl -name snnNode@127.0.0.1 -setcookie test
+   erl -name ?PC_INPUTLAYER -setcookie test
    c(neuron), c(layer), c(snn).
    ```
     

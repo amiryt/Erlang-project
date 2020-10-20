@@ -8,6 +8,7 @@
 %%%-------------------------------------------------------------------
 -module(neuron).
 -author("amiryt").
+-include("computers.hrl").
 
 -behaviour(gen_statem).
 

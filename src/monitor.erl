@@ -8,6 +8,7 @@
 %%%-------------------------------------------------------------------
 -module(monitor).
 -author("kyan").
+-include("computers.hrl").
 
 %% API
 -export([init/0, start/0, createdefmonitor/7, getActive/0]).
@@ -16,16 +17,17 @@ init() ->
   spawn(monitor, start, []).
 
 
+
 start() ->
   flush(),
   timer:sleep(2000),
 
   %% Checks if the node is on
-  case rpc:call('resmonitorNode@127.0.0.1', erlang, whereis, [resmonitor]) of
+  case rpc:call(?PC_RESMONITOR, erlang, whereis, [resmonitor]) of
     {badrpc, _} -> io:format("You need to create resMonitor node ~n", []),
       start();
 
-    undefined -> case rpc:call('resmonitorNode@127.0.0.1', erlang, whereis, [defStartMonitor]) of
+    undefined -> case rpc:call(?PC_RESMONITOR, erlang, whereis, [defStartMonitor]) of
                    undefined -> io:format("You need to create resMonitor process ~n", []),
                      start();
                    _ -> ok
@@ -33,7 +35,7 @@ start() ->
     _ -> ok
   end,
 
-  case rpc:call('serverNode@127.0.0.1', erlang, whereis, [server]) of
+  case rpc:call(?PC_SERVER, erlang, whereis, [server]) of
     {badrpc, _} -> io:format("You need to create server node ~n", []),
       start();
 
@@ -43,7 +45,7 @@ start() ->
 
   end,
 
-  case rpc:call('graphicsNode@127.0.0.1', erlang, whereis, [gui]) of
+  case rpc:call(?PC_GRAPHICS, erlang, whereis, [gui]) of
     {badrpc, _} -> io:format("You need to create graphics node ~n", []),
       start();
 
@@ -53,7 +55,7 @@ start() ->
     _ -> ok
   end,
 
-  case rpc:call('snnNode@127.0.0.1', erlang, whereis, [snn]) of
+  case rpc:call(?PC_INPUTLAYER, erlang, whereis, [snn]) of
     {badrpc, _} -> io:format("You need to create snn node ~n", []),
       start();
 
@@ -63,7 +65,7 @@ start() ->
     _ -> ok
   end,
 
-  case rpc:call('outlayerNode@127.0.0.1', erlang, whereis, [stam]) of
+  case rpc:call(?PC_OUTPUTLAYER, erlang, whereis, [stam]) of
     {badrpc, _} -> io:format("You need to create out layer node ~n", []),
       start();
 
@@ -82,14 +84,14 @@ start() ->
   end,
 
   %% Initiating the system
-  Server = rpc:call('serverNode@127.0.0.1', server, start, []),
-  {Gui, Graph} = rpc:call('graphicsNode@127.0.0.1', graphics, init, []),
-  Snn = rpc:call('snnNode@127.0.0.1', snn, init, []),
-  OutLayerPid = rpc:call('outlayerNode@127.0.0.1', outlayer, init, []),
+  Server = rpc:call(?PC_SERVER, server, start, []),
+  {Gui, Graph} = rpc:call(?PC_GRAPHICS, graphics, init, []),
+  Snn = rpc:call(?PC_INPUTLAYER, snn, init, []),
+  OutLayerPid = rpc:call(?PC_OUTPUTLAYER, outlayer, init, []),
 
-  case rpc:call('resmonitorNode@127.0.0.1', erlang, whereis, [resmonitor]) of
+  case rpc:call(?PC_RESMONITOR, erlang, whereis, [resmonitor]) of
     undefined ->
-      Y = rpc:call('resmonitorNode@127.0.0.1', erlang, whereis, [defStartMonitor]);
+      Y = rpc:call(?PC_RESMONITOR, erlang, whereis, [defStartMonitor]);
 
     RM -> Y = RM
   end,
@@ -138,7 +140,7 @@ start() ->
 
 %% to handle down messages to restart the application
 monitorloop(Server, Gui, Snn, Graph, ResMonitor, OutLayerPid, DefMonitor) ->
-  spawn(server, activeMonitor, [server, 'serverNode@127.0.0.1', self(), node()]),
+  spawn(server, activeMonitor, [server, ?PC_SERVER, self(), node()]),
   flush(),
   io:format("mainMonitor (~p): Waiting in the loop~n", [self()]),
   receive
@@ -165,13 +167,13 @@ monitorloop(Server, Gui, Snn, Graph, ResMonitor, OutLayerPid, DefMonitor) ->
 
   %% Terminating the other process
     {'DOWN', _, process, ResMonitor, Res} ->
-      case rpc:call('monitorNode@127.0.0.1', erlang, whereis, [stam]) of
+      case rpc:call(?PC_MONITOR, erlang, whereis, [stam]) of
         {badrpc, _} ->  % mainMonitor computer (node) is down
           io:format("mainMonitor: My resMonitor Node ~p died (~p)~n", [ResMonitor, Res]),
           monitorloop(Server, Gui, Snn, Graph, ResMonitor, OutLayerPid, DefMonitor);
         _ -> % The resMonitor died, need to take the def monitor
           io:fwrite("mainMonitor: Recieved change message of the active monitor ~n", []),
-          Active = rpc:call('resmonitorNode@127.0.0.1', resmonitor, getActive, []),
+          Active = rpc:call(?PC_RESMONITOR, resmonitor, getActive, []),
           _ = erlang:monitor(process, Active),
           monitorloop(Server, Gui, Snn, Graph, Active, OutLayerPid, DefMonitor)
       end;
@@ -185,50 +187,50 @@ monitorloop(Server, Gui, Snn, Graph, ResMonitor, OutLayerPid, DefMonitor) ->
       monitorloop(Server, Gui, Snn, Graph, ResMonitor, OutLayerPid, NewDefMonitor);
 
     {'DOWN', _, process, Server, Res} -> io:format("mainMonitor (~p): My server ~p died (~p)~n", [self(),Server, Res]),
-      {graph, 'graphicsNode@127.0.0.1'} ! {monitor, exit},
-      {snn, 'snnNode@127.0.0.1'} ! {monitor, exit},
-      {gui, 'graphicsNode@127.0.0.1'} ! {monitor, exit},
-      {outlayer, 'outlayerNode@127.0.0.1'} ! {monitor, exit},
+      {graph, ?PC_GRAPHICS} ! {monitor, exit},
+      {snn, ?PC_INPUTLAYER} ! {monitor, exit},
+      {gui, ?PC_GRAPHICS} ! {monitor, exit},
+      {outlayer, ?PC_OUTPUTLAYER} ! {monitor, exit},
       io:format("Restarting the application ~n", []),
       flush(),
       start();
 
     {'DOWN', _, process, Gui, Res} -> io:format("mainMonitor (~p): My gui ~p died (~p)~n", [self(),Gui, Res]),
-      {graph, 'graphicsNode@127.0.0.1'} ! {monitor, exit},
-      {snn, 'snnNode@127.0.0.1'} ! {monitor, exit},
-      {outlayer, 'outlayerNode@127.0.0.1'} ! {monitor, exit},
-      {gui, 'graphicsNode@127.0.0.1'} ! {monitor, exit},
-      spawn(server, stop, [server, 'serverNode@127.0.0.1']),
+      {graph, ?PC_GRAPHICS} ! {monitor, exit},
+      {snn, ?PC_INPUTLAYER} ! {monitor, exit},
+      {outlayer, ?PC_OUTPUTLAYER} ! {monitor, exit},
+      {gui, ?PC_GRAPHICS} ! {monitor, exit},
+      spawn(server, stop, [server, ?PC_SERVER]),
       io:format("Restarting the application ~n", []),
       flush(),
       start();
 
     {'DOWN', _, process, Snn, Res} -> io:format("mainMonitor (~p): My SNN ~p died (~p)~n", [self(),Snn, Res]),
-      {gui, 'graphicsNode@127.0.0.1'} ! {monitor, exit},
-      {graph, 'graphicsNode@127.0.0.1'} ! {monitor, exit},
-      {outlayer, 'outlayerNode@127.0.0.1'} ! {monitor, exit},
-      {snn, 'snnNode@127.0.0.1'} ! {monitor, exit},
-      spawn(server, stop, [server, 'serverNode@127.0.0.1']),
+      {gui, ?PC_GRAPHICS} ! {monitor, exit},
+      {graph, ?PC_GRAPHICS} ! {monitor, exit},
+      {outlayer, ?PC_OUTPUTLAYER} ! {monitor, exit},
+      {snn, ?PC_INPUTLAYER} ! {monitor, exit},
+      spawn(server, stop, [server, ?PC_SERVER]),
       io:format("Restarting the application ~n", []),
       flush(),
       start();
 
     {'DOWN', _, process, Graph, Res} -> io:format("mainMonitor (~p): My Graph ~p died (~p)~n", [self(),Graph, Res]),
-      {snn, 'snnNode@127.0.0.1'} ! {monitor, exit},
-      {gui, 'graphicsNode@127.0.0.1'} ! {monitor, exit},
-      {outlayer, 'outlayerNode@127.0.0.1'} ! {monitor, exit},
-      {graph, 'graphicsNode@127.0.0.1'} ! {monitor, exit},
-      spawn(server, stop, [server, 'serverNode@127.0.0.1']),
+      {snn, ?PC_INPUTLAYER} ! {monitor, exit},
+      {gui, ?PC_GRAPHICS} ! {monitor, exit},
+      {outlayer, ?PC_OUTPUTLAYER} ! {monitor, exit},
+      {graph, ?PC_GRAPHICS} ! {monitor, exit},
+      spawn(server, stop, [server, ?PC_SERVER]),
       io:format("Resting the application ~n", []),
       flush(),%% to clear the mail box
       start();
 
     {'DOWN', _, process, OutLayerPid, Res} -> io:format("mainMonitor (~p): My Graph ~p died (~p)~n", [self(),OutLayerPid, Res]),
-      {snn, 'snnNode@127.0.0.1'} ! {monitor, exit},
-      {gui, 'graphicsNode@127.0.0.1'} ! {monitor, exit},
-      {graph, 'graphicsNode@127.0.0.1'} ! {monitor, exit},
-      {outlayer, 'outlayerNode@127.0.0.1'} ! {monitor, exit},
-      spawn(server, stop, [server, 'serverNode@127.0.0.1']),
+      {snn, ?PC_INPUTLAYER} ! {monitor, exit},
+      {gui, ?PC_GRAPHICS} ! {monitor, exit},
+      {graph, ?PC_GRAPHICS} ! {monitor, exit},
+      {outlayer, ?PC_OUTPUTLAYER} ! {monitor, exit},
+      spawn(server, stop, [server, ?PC_SERVER]),
       io:format("Restarting the application ~n", []),
       flush(),
       start();

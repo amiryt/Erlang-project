@@ -1,5 +1,6 @@
 -module(server).
 -behaviour(gen_server).
+-include("computers.hrl").
 
 -export([init/1, handle_call/3, handle_cast/2,
   handle_info/2, terminate/2, code_change/3]).
@@ -61,12 +62,12 @@ handle_call({activeMonitor, Active,ActNode}, _From, State) ->
 
 
 handle_call({testImage, Conv}, _From, State) ->
-  {snn, 'snnNode@127.0.0.1'} ! {test, Conv},
+  {snn, ?PC_INPUTLAYER} ! {test, Conv},
   {noreply, State};
 
 
 handle_call({graphDraw, Nm, NeuronNumber}, _From, State) ->
-  {graph, 'graphicsNode@127.0.0.1'} ! {server, draw, Nm, NeuronNumber},
+  {graph, ?PC_GRAPHICS} ! {server, draw, Nm, NeuronNumber},
   {noreply, State};
 
 
@@ -82,7 +83,7 @@ handle_call({terminateApp, _}, _From, State) ->
 
 
 handle_call({endTest, _}, _From, State) ->
-  {gui, 'graphicsNode@127.0.0.1'} ! {server, finished},
+  {gui, ?PC_GRAPHICS} ! {server, finished},
   {noreply, State}.
 
 
