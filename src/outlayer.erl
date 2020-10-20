@@ -8,6 +8,7 @@
 %%%-------------------------------------------------------------------
 -module(outlayer).
 -author("kyan").
+-include("computers.hrl").
 
 %% API
 -export([init/0, start/0]).

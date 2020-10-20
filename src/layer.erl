@@ -8,6 +8,7 @@
 %%%-------------------------------------------------------------------
 -module(layer).
 -author("amiryt").
+-include("computers.hrl").
 
 %% gen_server callbacks
 -export([start/3, test/1, start_output_layer/0, output_requests/3, manager_finish/1, active_input_layer/1, change_input_layer/1, killinputlayer/0, killoutputlayer/0]).
@@ -256,10 +257,10 @@ actions_neuron(Neuron_Number) ->
 %%  The second variable is for local node (the input layer) in case we would like to check the connection between them
     {maximal_amount, _, Value, Output_Manager_Pid} ->
       case Neuron_Number of
-        257 -> spawn(server, graphDraw, [server, 'serverNode@127.0.0.1', Value, 1]);
-        258 -> spawn(server, graphDraw, [server, 'serverNode@127.0.0.1', Value, 2]);
-        259 -> spawn(server, graphDraw, [server, 'serverNode@127.0.0.1', Value, 3]);
-        260 -> spawn(server, graphDraw, [server, 'serverNode@127.0.0.1', Value, 4])
+        257 -> spawn(server, graphDraw, [server, ?PC_SERVER, Value, 1]);
+        258 -> spawn(server, graphDraw, [server, ?PC_SERVER, Value, 2]);
+        259 -> spawn(server, graphDraw, [server, ?PC_SERVER, Value, 3]);
+        260 -> spawn(server, graphDraw, [server, ?PC_SERVER, Value, 4])
 
       end,
       %%io:format("Output neuron~p max is ~p~n", [Neuron_Number, Value]),

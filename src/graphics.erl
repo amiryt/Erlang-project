@@ -4,7 +4,7 @@
 -include_lib("wx/include/wx.hrl").
 
 -export([init/0, startGraph/0, startGui/0]).
-
+-include("computers.hrl").
 
 %% Initiating the graphs handler and the wxWidgets GUI
 init() ->
@@ -45,7 +45,7 @@ graphHanlder() ->
           Res = draw(get(neuron1), get(neuron2), get(neuron3), get(neuron4)),
           case Res of
             1 ->
-              spawn(server, endTest, [server, 'serverNode@127.0.0.1', 1]);
+              spawn(server, endTest, [server, ?PC_SERVER, 1]);
             _ -> ok
           end;
         _ -> nothingtodo
@@ -90,21 +90,21 @@ make_window() ->
     wxStaticText:new(Panel, 3, "then you need to wait for the test to finish",
       [{style, ?wxALIGN_RIGHT bor ?wxST_NO_AUTORESIZE}])],
 
-  Image = wxImage:new("/home/kyan/Desktop/finalWorks/Images/image0.jpg", []),
+  Image = wxImage:new(?IMAGE0, []),
   Bitmap = wxBitmap:new(wxImage:scale(Image,
     round(wxImage:getWidth(Image) * 4),
     round(wxImage:getHeight(Image) * 4),
     [{quality, ?wxIMAGE_QUALITY_HIGH}])),
   StaticBitmap = wxStaticBitmap:new(Panel, 1, Bitmap),
 
-  Image1 = wxImage:new("/home/kyan/Desktop/finalWorks/Images/image1.jpg", []),
+  Image1 = wxImage:new(?IMAGE1, []),
   Bitmap1 = wxBitmap:new(wxImage:scale(Image1,
     round(wxImage:getWidth(Image1) * 4),
     round(wxImage:getHeight(Image1) * 4),
     [{quality, ?wxIMAGE_QUALITY_HIGH}])),
   StaticBitmap1 = wxStaticBitmap:new(Panel, 2, Bitmap1),
 
-  Image2 = wxImage:new("/home/kyan/Desktop/finalWorks/Images/image2.jpg", []),
+  Image2 = wxImage:new(?IMAGE2, []),
   Bitmap2 = wxBitmap:new(wxImage:scale(Image2,
     round(wxImage:getWidth(Image2) * 4),
     round(wxImage:getHeight(Image2) * 4),
@@ -182,12 +182,12 @@ loop(State) ->
     {monitor, exit} -> ok;
 
     #wx{event = #wxClose{}} ->
-      spawn(server, terminateApp, [server, 'serverNode@127.0.0.1', 1]),
+      spawn(server, terminateApp, [server, ?PC_SERVER, 1]),
       %% Closes the window
       loop(State);
 
     #wx{id = ?wxID_EXIT, event = #wxCommand{type = command_button_clicked}} ->
-      spawn(server, terminateApp, [server, 'serverNode@127.0.0.1', 1]),
+      spawn(server, terminateApp, [server, ?PC_SERVER, 1]),
       %% Closes the window
       loop(State),
       ok;
@@ -210,24 +210,24 @@ loop(State) ->
               case list_to_integer(T1001_val) of
                 1 -> put(isactive, 1),
                   show(0),
-                  spawn(server, testImage, [server, 'serverNode@127.0.0.1', conv1(0)]),
+                  spawn(server, testImage, [server, ?PC_SERVER, conv1(0)]),
                   wxStaticText:setLabel(ST2001, "The network in progress please wait");
 
                 2 -> put(isactive, 1),
                   show(1),
-                  spawn(server, testImage, [server, 'serverNode@127.0.0.1', conv1(1)]),
+                  spawn(server, testImage, [server, ?PC_SERVER, conv1(1)]),
                   wxStaticText:setLabel(ST2001, "The network in progress please wait");
 
                 3 -> put(isactive, 1),
                   show(2),
-                  spawn(server, testImage, [server, 'serverNode@127.0.0.1', conv1(2)]),
+                  spawn(server, testImage, [server, ?PC_SERVER, conv1(2)]),
                   wxStaticText:setLabel(ST2001, "The network in progress please wait");
 
                 4 -> put(isactive, 1),
                   case get(drawed) of
                     undefined-> wxStaticText:setLabel(ST2001, "you didn't drawed an image");
                     _->show(3),
-                      spawn(server, testImage, [server, 'serverNode@127.0.0.1', conv1(3)]),
+                      spawn(server, testImage, [server, ?PC_SERVER, conv1(3)]),
                       wxStaticText:setLabel(ST2001, "The network in progress please wait")
                   end;
 
