@@ -8,6 +8,7 @@
 %%%-------------------------------------------------------------------
 -module(resmonitor).
 -author("kyan").
+-include("computers.hrl").
 
 %% API
 -export([init/0, start/7, createdefmonitor/6, getActive/0, createdefStartmonitor/7]).
@@ -36,7 +37,7 @@ start(Server, Gui, Snn, Graph, MainMonitor, OutLayer, DefStartMonitor) ->
 
   %% mainMonitor down the res monitor replaces it
     {'DOWN', _, process, MainMonitor, Res} ->
-      case rpc:call('monitorNode@127.0.0.1', erlang, whereis, [stam]) of
+      case rpc:call(?PC_MONITOR, erlang, whereis, [stam]) of
         {badrpc, _} ->  %% main monitor computer (node) is down
           io:fwrite("resMonitor: My monitor ~p died (~p)~n", [MainMonitor, Res]),
           RefServer = erlang:monitor(process, Server),
@@ -60,7 +61,7 @@ start(Server, Gui, Snn, Graph, MainMonitor, OutLayer, DefStartMonitor) ->
 
         _ ->
           io:fwrite("Waiting to change the active monitor ~n", []),
-          Active = rpc:call('monitorNode@127.0.0.1', monitor, getActive, []),
+          Active = rpc:call(?PC_MONITOR, monitor, getActive, []),
           io:fwrite("Changed the active monitor ~n", []),
           _ = erlang:monitor(process, Active),
           start(Server, Gui, Snn, Graph, Active, OutLayer, DefStartMonitor)
@@ -78,8 +79,8 @@ start(Server, Gui, Snn, Graph, MainMonitor, OutLayer, DefStartMonitor) ->
 
   %% Receiving the pids from the main monitor
     {monitor, NewServer, NewGui, NewSnn, NewGraph, NewOutLayer} ->
-       case rpc:call('monitorNode@127.0.0.1', erlang, whereis, [monitor]) of%% if there is no monitor then there is
-         undefined-> X = rpc:call('monitorNode@127.0.0.1', monitor, getActive, []);%% other monitor active
+       case rpc:call(?PC_MONITOR, erlang, whereis, [monitor]) of%% if there is no monitor then there is
+         undefined-> X = rpc:call(?PC_MONITOR, monitor, getActive, []);%% other monitor active
          MM->X=MM
        end,
       NewMainMonitor=X,
@@ -120,28 +121,28 @@ start() ->
   flush(),
   timer:sleep(2000),
   %% Checks if the node is on
-  case rpc:call('serverNode@127.0.0.1', erlang, whereis, [server]) of
+  case rpc:call(?PC_SERVER, erlang, whereis, [server]) of
     {badrpc, _} -> io:format("You need to create server node ~n", []),
       start();
     undefined -> ok;
     _ -> ok
   end,
 
-  case rpc:call('graphicsNode@127.0.0.1', erlang, whereis, [gui]) of
+  case rpc:call(?PC_GRAPHICS, erlang, whereis, [gui]) of
     {badrpc, _} -> io:format("You need to create graphics node ~n", []),
       start();
     undefined -> ok;
     _ -> ok
   end,
 
-  case rpc:call('snnNode@127.0.0.1', erlang, whereis, [snn]) of
+  case rpc:call(?PC_INPUTLAYER, erlang, whereis, [snn]) of
     {badrpc, _} -> io:format("You need to create SNN node ~n", []),
       start();
     undefined -> ok;
     _ -> ok
   end,
 
-  case rpc:call('outlayerNode@127.0.0.1', erlang, whereis, [outlayer]) of
+  case rpc:call(?PC_OUTPUTLAYER, erlang, whereis, [outlayer]) of
     {badrpc, _} -> io:format("You need to create out layer node ~n", []),
       start();
     undefined -> ok;
@@ -162,10 +163,10 @@ start() ->
   end,
 
   %% Initiating the system
-  Server = rpc:call('serverNode@127.0.0.1', server, start, []),
-  {Gui, Graph} = rpc:call('graphicsNode@127.0.0.1', graphics, init, []),
-  Snn = rpc:call('snnNode@127.0.0.1', snn, init, []),
-  OutLayerPid = rpc:call('outlayerNode@127.0.0.1', outlayer, init, []),
+  Server = rpc:call(?PC_SERVER, server, start, []),
+  {Gui, Graph} = rpc:call(?PC_GRAPHICS, graphics, init, []),
+  Snn = rpc:call(?PC_INPUTLAYER, snn, init, []),
+  OutLayerPid = rpc:call(?PC_OUTPUTLAYER, outlayer, init, []),
   case get(defMon) of
     undefined -> DefMonitor = spawn(resmonitor, createdefmonitor, [self(), Server, Gui, Snn, Graph, OutLayerPid]),
       put(defMon, DefMonitor);
@@ -198,7 +199,7 @@ start() ->
 %% Handles down messages and restarting the system
 monitorloop(Server, Gui, Snn, Graph, OutLayerPid, DefMonitor) ->
   flush(),
-  spawn(server, activeMonitor, [server, 'serverNode@127.0.0.1', self(), node()]),
+  spawn(server, activeMonitor, [server, ?PC_SERVER, self(), node()]),
   io:format("resMonitor (~p):  Waiting in the loop ~n", [self()]),
   receive
     {server, terminate} ->
@@ -215,7 +216,9 @@ monitorloop(Server, Gui, Snn, Graph, OutLayerPid, DefMonitor) ->
       OutLayerPid ! {monitor, terminate},
       Graph ! {monitor, terminate},
       DefMonitor ! {monitor, terminate},
-      flush();
+      timer:sleep(5000),
+      exit(self(),kill);
+
 
     {gui, terminate} ->
       io:format("resMonitor: Terminating the application ~n", []);
@@ -229,50 +232,72 @@ monitorloop(Server, Gui, Snn, Graph, OutLayerPid, DefMonitor) ->
       monitorloop(Server, Gui, Snn, Graph, OutLayerPid, NewDefMonitor);
 
     {'DOWN', _, process, Server, Res} -> io:format("resMonitor (~p): My server ~p died (~p)~n", [self(),Server, Res]),
-      {graph, 'graphicsNode@127.0.0.1'} ! {monitor, exit},
-      {snn, 'snnNode@127.0.0.1'} ! {monitor, exit},
-      {gui, 'graphicsNode@127.0.0.1'} ! {monitor, exit},
-      {outlayer, 'outlayerNode@127.0.0.1'} ! {monitor, exit},
+      _ = erlang:demonitor(get(refServer)),
+      _ = erlang:demonitor(get(refGui)),
+      _ = erlang:demonitor(get(refSnn)),
+      _ = erlang:demonitor(get(refGraph)),
+
+      {graph, ?PC_GRAPHICS} ! {monitor, exit},
+      {snn, ?PC_INPUTLAYER} ! {monitor, exit},
+      {gui, ?PC_GRAPHICS} ! {monitor, exit},
+      {outlayer, ?PC_OUTPUTLAYER} ! {monitor, exit},
       io:format("Restarting the application ~n", []),
       flush(),
       start();
 
     {'DOWN', _, process, Gui, Res} -> io:format("resMonitor (~p): My GUI ~p died (~p)~n", [self(),Gui, Res]),
-      {graph, 'graphicsNode@127.0.0.1'} ! {monitor, exit},
-      {snn, 'snnNode@127.0.0.1'} ! {monitor, exit},
-      {outlayer, 'outlayerNode@127.0.0.1'} ! {monitor, exit},
-      {gui, 'graphicsNode@127.0.0.1'} ! {monitor, exit},
-      spawn(server, stop, [server, 'serverNode@127.0.0.1']),
+      _ = erlang:demonitor(get(refServer)),
+      _ = erlang:demonitor(get(refGui)),
+      _ = erlang:demonitor(get(refSnn)),
+      _ = erlang:demonitor(get(refGraph)),
+
+      {graph, ?PC_GRAPHICS} ! {monitor, exit},
+      {snn, ?PC_INPUTLAYER} ! {monitor, exit},
+      {outlayer, ?PC_OUTPUTLAYER} ! {monitor, exit},
+      {gui, ?PC_GRAPHICS} ! {monitor, exit},
+      spawn(server, stop, [server, ?PC_SERVER]),
       io:format("Restarting the application ~n", []),
       flush(),
       start();
 
     {'DOWN', _, process, Snn, Res} -> io:format("resMonitor (~p): My Snn ~p died (~p)~n", [self(),Snn, Res]),
-      {gui, 'graphicsNode@127.0.0.1'} ! {monitor, exit},
-      {graph, 'graphicsNode@127.0.0.1'} ! {monitor, exit},
-      {outlayer, 'outlayerNode@127.0.0.1'} ! {monitor, exit},
-      {snn, 'snnNode@127.0.0.1'} ! {monitor, exit},
-      spawn(server, stop, [server, 'serverNode@127.0.0.1']),
+      _ = erlang:demonitor(get(refServer)),
+      _ = erlang:demonitor(get(refGui)),
+      _ = erlang:demonitor(get(refSnn)),
+      _ = erlang:demonitor(get(refGraph)),
+      {gui, ?PC_GRAPHICS} ! {monitor, exit},
+      {graph, ?PC_GRAPHICS} ! {monitor, exit},
+      {outlayer, ?PC_OUTPUTLAYER} ! {monitor, exit},
+      {snn, ?PC_INPUTLAYER} ! {monitor, exit},
+      spawn(server, stop, [server, ?PC_SERVER]),
       io:format("Restarting the application ~n", []),
       flush(),
       start();
 
     {'DOWN', _, process, Graph, Res} -> io:format("resMonitor (~p): My Graph ~p died (~p)~n", [self(),Graph, Res]),
-      {snn, 'snnNode@127.0.0.1'} ! {monitor, exit},
-      {gui, 'graphicsNode@127.0.0.1'} ! {monitor, exit},
-      {outlayer, 'outlayerNode@127.0.0.1'} ! {monitor, exit},
-      {graph, 'graphicsNode@127.0.0.1'} ! {monitor, exit},
-      spawn(server, stop, [server, 'serverNode@127.0.0.1']),
+      _ = erlang:demonitor(get(refServer)),
+      _ = erlang:demonitor(get(refGui)),
+      _ = erlang:demonitor(get(refSnn)),
+      _ = erlang:demonitor(get(refGraph)),
+      {snn, ?PC_INPUTLAYER} ! {monitor, exit},
+      {gui, ?PC_GRAPHICS} ! {monitor, exit},
+      {outlayer, ?PC_OUTPUTLAYER} ! {monitor, exit},
+      {graph, ?PC_GRAPHICS} ! {monitor, exit},
+      spawn(server, stop, [server, ?PC_SERVER]),
       io:format("restarting the application ~n", []),
       flush(),
       start();
 
     {'DOWN', _, process, OutLayerPid, Res} -> io:format("resMonitor (~p): My Graph ~p died (~p)~n", [self(),OutLayerPid, Res]),
-      {snn, 'snnNode@127.0.0.1'} ! {monitor, exit},
-      {gui, 'graphicsNode@127.0.0.1'} ! {monitor, exit},
-      {graph, 'graphicsNode@127.0.0.1'} ! {monitor, exit},
-      {outlayer, 'outlayerNode@127.0.0.1'} ! {monitor, exit},
-      spawn(server, stop, [server, 'serverNode@127.0.0.1']),
+      _ = erlang:demonitor(get(refServer)),
+      _ = erlang:demonitor(get(refGui)),
+      _ = erlang:demonitor(get(refSnn)),
+      _ = erlang:demonitor(get(refGraph)),
+      {snn, ?PC_INPUTLAYER} ! {monitor, exit},
+      {gui, ?PC_GRAPHICS} ! {monitor, exit},
+      {graph, ?PC_GRAPHICS} ! {monitor, exit},
+      {outlayer, ?PC_OUTPUTLAYER} ! {monitor, exit},
+      spawn(server, stop, [server, ?PC_SERVER]),
       io:format("Restarting the application ~n", []),
       flush(),
       start();
@@ -343,7 +368,7 @@ defStartmonitor(MonitorPid, MainMonitor, Server, Gui, Snn, Graph, OutLayerPid) -
       io:format("Old startMonitor down message is: ~p~n", [Res]),
       case get(defMon) of%% if the monitor starts to work then it had def monitor
         undefined ->%% the monitor isn't in the monitor loop
-          case rpc:call('monitorNode@127.0.0.1', erlang, whereis, [stam]) of
+          case rpc:call(?PC_MONITOR, erlang, whereis, [stam]) of
             undefined ->
               register(defStartMonitor, self()),
               io:format("Old startMonitor down message is: ~p~n", [Res]),

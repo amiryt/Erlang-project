@@ -8,6 +8,7 @@
 %%%-------------------------------------------------------------------
 -module(snn).
 -author("kyan").
+-include("computers.hrl").
 
 %% API
 -export([init/0, start/0]).
@@ -25,7 +26,7 @@ init() ->
 %% Starting the input layer an handling the message
 start() ->
   %%layer:killinputlayer(),
-  layer:start(1, 1, 'outlayerNode@127.0.0.1'),
+  layer:start(1, 1, ?PC_OUTPUTLAYER),
   snnHandler().
 
 %% Handles message of the input layer
