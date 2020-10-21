@@ -1,3 +1,6 @@
+# Link for youtube video:
+   https://youtu.be/ol4UJYCZ_NQ
+
 # SNN based on lif model in erlang
 This is an erlang implementation of spiking neural network. Our main traget is to develop a network that can determine between X and O.
 In future work, we want to use Spike-Time Dependent Plasticity (STDP) algorithm in order to train our model to identify more items.
